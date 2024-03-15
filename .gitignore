@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+
+# IDEs
+.idea/
+.vscode/
+
+# Jupyter
+.ipynb_checkpoints/
+
+.bin/
+.data/
+.logs/
+
+# model weights
+*.pt
+*.pth
+
+# object files
+*.o
+*.so
