@@ -8,9 +8,9 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-.bin/
-.data/
-.logs/
+bin/
+data/
+logs/
 
 # model weights
 *.pt
