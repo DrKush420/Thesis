@@ -151,45 +151,45 @@ def create_dataloaders(params):
 
 def uncertainty_training(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer):
     
-    for i in range(1,cycles+1):
+    for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
-                           tb_dir_name, checkpoints_dir_name)
+                           tb_dir_name, checkpoints_dir_name,seed)
         uncertain_ind=utils.select_uncertain(params, unlabelled_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name)
+                     tb_dir_name, checkpoints_dir_name,split_size=100)
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(uncertain_ind))
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
         acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        writer.writerow([acc,recall, precision, i*500, "active learning_no_weight", "uncertainty_monte_carlo",seed])
+        writer.writerow([acc,recall, precision, i*100+200, "active learning_no_weight", "uncertainty_monte_carlo",seed])
         params = initialize_params()
 
-def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,file):
+def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
+               ,params,file):
     last_accuracy=0
-    for i in range(1,cycles+1):
+    for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
-                           tb_dir_name, checkpoints_dir_name)
-        acc=utils.test_model(params, test_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,"Active Learning","uncertain",i*500,str(seed))
-        if acc<last_accuracy:
+                           tb_dir_name, checkpoints_dir_name,seed)
+        acc,_,_=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+        if (last_accuracy-acc)>2:
             for item in uncertain_data:
                 file.write(f"{item}\n")
+            file.flush()
         last_accuracy=acc
         uncertain_ind=utils.select_uncertain(params, unlabelled_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name)
+                     tb_dir_name, checkpoints_dir_name,split_size=100)
         uncertain_data=unlabelled_dataloader.dataset.get_data(uncertain_ind)
         train_dataloader.dataset.add_data(uncertain_data)
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
-        
         params = initialize_params()
 
 def random_training(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer):
-    for i in range(1,cycles+1):
+    for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
-                           tb_dir_name, checkpoints_dir_name)
-        indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=500)
+                           tb_dir_name, checkpoints_dir_name,seed)
+        indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=100)
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
         acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        writer.writerow([acc,recall, precision, i*500, "active learning_no_weight", "random",seed])
+        writer.writerow([acc,recall, precision, i*100+200, "active learning_no_weight", "random",seed])
         params = initialize_params()
 
 def set_deterministic(seed):
@@ -258,30 +258,42 @@ if __name__ == '__main__':
     columns = [ 'test accuracy','recall','precision', 'trainingset_size', 'type', 'method','seed']
 
     #logfile
-    
+    """
     file=open(args.logdir+"/modeldata/"+datetime.now().strftime("_%B%d_%H_%M_%S_")+".csv", 'w')
     writer = csv.writer(file)
     writer.writerow(columns)
+    """
 
+    file = open("logs/shitdata.txt", 'a')
     # Start the training
     #active learning uncertainty
 
     #seedlist=[69,420,1337,42069,69420]
-    seedlist=[0,1,2,3,4,5,6,7,8,9]
+    #seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
+    seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
+            """
             set_deterministic(seed)
             params=initialize_params()
             train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
             uncertainty_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer)
             file.flush()
-            #set_deterministic(seed)
-            #params=initialize_params()
-            #train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-            #random_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer)
-            #file.flush()
+            set_deterministic(seed)
+            params=initialize_params()
+            train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+            random_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer)
+            file.flush()
+            """
+    seed=0
+    while(True):
+        params=initialize_params()
+        train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+        clean_data(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,file)
+        seed+=1
+
     file.close()
 
 

@@ -30,7 +30,7 @@ def get_train_val_split(root, val_fraction=0.2, val_group=0):
     return train_images, val_images
 
 
-def get_datasets_split(root, training_size=500, test_size=1000,validation_size=200,seed=1):
+def get_datasets_split(root, training_size=200, test_size=1000,validation_size=200,seed=1):
 
 
     all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
