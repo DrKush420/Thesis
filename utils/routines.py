@@ -78,7 +78,7 @@ def train_epoch_classifier(model, dataloader, optimizer, criterion, device, log_
 
 
 def train_classifier(params, train_dataloader, val_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,seed=0,method=""):
+                     tb_dir_name, checkpoints_dir_name,seed=0,method="",network=""):
     """Train a classifier model for a number of epochs on the given device
     """
 
@@ -95,7 +95,7 @@ def train_classifier(params, train_dataloader, val_dataloader, device,
         lr = params.optimizer.param_groups[0]['lr']
         logging.info('Epoch: %d, lr: %f' % (epoch + 1, lr))
         logging.info('Seed: %d' , seed)
-        logging.info('method:'+method)
+        logging.info('method:'+method+network)
         tb.add_scalar('Train/LearningRate', lr, epoch)
 
         def log_fn(inputs):
@@ -123,7 +123,7 @@ def train_classifier(params, train_dataloader, val_dataloader, device,
                 'acc': val_acc,
                 'epoch': epoch,
             }
-            torch.save(state, os.path.join(checkpoints_dir_name, 'best.pt'))
+            torch.save(state, os.path.join(checkpoints_dir_name,network+'best.pt'))
             best_acc = val_acc
 
     time_elapsed = time.time() - start_time
@@ -208,8 +208,8 @@ def select_uncertain_carlo(params, unl_dataloader, device,
 
     return uncertain_indices
 
-def test_model(params, test_dataloader, device,checkpoints_dir_name):
-    state = torch.load(os.path.join(checkpoints_dir_name, 'best.pt'))
+def test_model(params, test_dataloader, device,checkpoints_dir_name,network=''):
+    state = torch.load(os.path.join(checkpoints_dir_name,network+'best.pt'))
     params.model.load_state_dict(state['net'])
     model=params.model.eval()
     model=model.to(device)
@@ -339,7 +339,7 @@ def DPP_div_unc(params, unl_dataloader, device,
     logging.info("DPP")
     dpp = FiniteDPP('likelihood', L=L)
     rng = RandomState(123)
-    # Sample x diverse items    75.5
+    # Sample x diverse items
     dpp.sample_mcmc_k_dpp(size=size, random_state=rng)  
     #dpp.sample_exact_k_dpp(size=size)
     sampled_indices = dpp.list_of_samples[-1]

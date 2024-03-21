@@ -16,6 +16,44 @@ import utils
 from datetime import datetime
 import time
 
+def auxiliary():
+    params = utils.Params()
+
+    # Network
+    params.batch_size = 64
+    params.input_size = (224, 224)
+    params.num_classes = 2
+    params.model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
+    params.model.classifier[1] = torch.nn.Linear(params.model.classifier[1].in_features, params.num_classes)
+
+    # Dataset
+    #params.train_images, params.val_images = utils.get_train_val_split('data/wheat/train_val_squares', 0.2, 0)
+    params.apply_masks = False
+
+    # Loss
+    # pos_weight is calculated based on #dont_spray/#spray samples in the dataset
+    params.weight_dont_spray = 1.0
+    params.weight_spray = 2.2
+    params.criterion = torch.nn.CrossEntropyLoss()
+    # Optimizer
+    params.weight_decay = 0.05
+    params.optimizer = torch.optim.AdamW(
+    params.model.parameters(),
+    lr=1e-4,
+    betas=(0.9, 0.95),
+    weight_decay=params.weight_decay
+    )
+
+    # Schedule
+    params.epochs = 50
+    params.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    params.optimizer,
+    factor=0.1,
+    mode='max',
+    patience=10,
+    threshold=0.001,
+    )
+    return params
 
 
 def initialize_params(startsize,data):
@@ -177,6 +215,23 @@ def uncertainty_training_carlo(cycles,seed,train_dataloader, val_dataloader,test
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(uncertain_ind))
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
         params = initialize_params(startsize,False)
+
+def disagreement(cycles,seed,train_dataloader, val_dataloader,test_dataloader,params
+                         ,unlabelled_dataloader,writer,stepsize,startsize):
+    params_aux = initialize_params()
+    for i in range(0,cycles):
+        utils.train_classifier(params, train_dataloader, val_dataloader, device,
+                           tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="primary_")
+        utils.train_classifier(params_aux, train_dataloader, val_dataloader, device,
+                           tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="auxiliary_")
+        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+        disagree_indices=utils.select_uncertain(params, unlabelled_dataloader, device,
+                     tb_dir_name, checkpoints_dir_name,split_size=stepsize)
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "disagreement",seed,train_dataloader.dataset.get_fraction()])
+        uncertain_data=unlabelled_dataloader.dataset.get_data(disagree_indices)
+        train_dataloader.dataset.add_data(uncertain_data)
+        unlabelled_dataloader.dataset.remove_data(disagree_indices)
+        params = initialize_params()
 
 def DPP(cycles,seed,train_dataloader, val_dataloader,test_dataloader
                          ,unlabelled_dataloader,params,writer,stepsize,startsize):
