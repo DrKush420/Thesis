@@ -122,9 +122,13 @@ class CropsDataset(torch.utils.data.Dataset):
 
     def get_data(self,indexes):
         return [self.data[i] for i in indexes]
+    def get_fraction(self):#get don't/spray fraction of dataset
+        labels = np.array([item[2] for item in self.data])
+        pos_label_fraction = np.mean(labels == 1)
+        return pos_label_fraction
     
     def remove_data(self,indexes):
-        indexes = set(indexes)
+        indexes = set(indexes) #for increased speed 
         self.data = [item for idx, item in enumerate(self.data) if idx not in indexes]
 
     def __getitem__(self, idx):

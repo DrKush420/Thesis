@@ -18,7 +18,7 @@ import time
 
 
 
-def initialize_params():
+def initialize_params(startsize,data):
     params = utils.Params()
 
     # Network
@@ -30,7 +30,8 @@ def initialize_params():
 
     # Dataset
     #params.train_images, params.val_images = utils.get_train_val_split('D:/data/wheat/train_val_squares')#, 0.2, 0)
-    params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split('./data/wheat/train_val_squares')
+    if data:
+        params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split('./data/wheat/train_val_squares',training_size=startsize)
     params.apply_masks = False
     params.train_transform = utils.train_transforms(crop_size=params.input_size, mean=0.5, std=0.5)
     params.test_transform = utils.test_transforms(crop_size=params.input_size, mean=0.5, std=0.5)
@@ -108,7 +109,7 @@ def create_dataloaders(params):
     unlabelled_dataloader = torch.utils.data.DataLoader(
         unlabelled_data,
         batch_size=params.batch_size,
-        shuffle=True,
+        shuffle=False,#will mess with indices for active learning!!
         pin_memory=True,
         num_workers=params.num_workers,
         worker_init_fn=seed_worker,
@@ -149,18 +150,46 @@ def create_dataloaders(params):
     params.training_data=training_data
     return train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
 
-def uncertainty_training(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer):
+def uncertainty_training(cycles,seed,train_dataloader, val_dataloader,test_dataloader
+                         ,unlabelled_dataloader,params,writer,stepsize,startsize):
     
     for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
-                           tb_dir_name, checkpoints_dir_name,seed)
+                           tb_dir_name, checkpoints_dir_name,seed,method="uncertain")
+        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
         uncertain_ind=utils.select_uncertain(params, unlabelled_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,split_size=100)
+                     tb_dir_name, checkpoints_dir_name,split_size=stepsize)
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "uncertainty",seed,train_dataloader.dataset.get_fraction()])
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(uncertain_ind))
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
+        params = initialize_params(startsize,False)
+
+def uncertainty_training_carlo(cycles,seed,train_dataloader, val_dataloader,test_dataloader
+                         ,unlabelled_dataloader,params,writer,stepsize,startsize):
+    
+    for i in range(0,cycles):
+        utils.train_classifier(params, train_dataloader, val_dataloader, device,
+                           tb_dir_name, checkpoints_dir_name,seed,method="monte_carlo")
         acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        writer.writerow([acc,recall, precision, i*100+200, "active learning_no_weight", "uncertainty_monte_carlo",seed])
-        params = initialize_params()
+        uncertain_ind=utils.select_uncertain_carlo(params, unlabelled_dataloader, device,
+                     tb_dir_name, checkpoints_dir_name,split_size=stepsize)
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "uncertainty_monte_carlo",seed,train_dataloader.dataset.get_fraction()])
+        train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(uncertain_ind))
+        unlabelled_dataloader.dataset.remove_data(uncertain_ind)
+        params = initialize_params(startsize,False)
+
+def DPP(cycles,seed,train_dataloader, val_dataloader,test_dataloader
+                         ,unlabelled_dataloader,params,writer,stepsize,startsize):
+    for i in range(0,cycles):
+        utils.train_classifier(params, train_dataloader, val_dataloader, device,
+                           tb_dir_name, checkpoints_dir_name,seed,method="DPP")
+        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+        ind=utils.DPP_div_unc(params, unlabelled_dataloader, device,checkpoints_dir_name,size=stepsize)
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "DPP_div_unc",seed,train_dataloader.dataset.get_fraction()])
+        train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(ind))
+        unlabelled_dataloader.dataset.remove_data(ind)
+        params = initialize_params(startsize,False)
+
 
 def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
                ,params,file):
@@ -181,16 +210,17 @@ def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unla
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
         params = initialize_params()
 
-def random_training(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer):
+def random_training(cycles,seed,train_dataloader, val_dataloader,test_dataloader
+                    ,unlabelled_dataloader,params,writer,stepsize,startsize):
     for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
-                           tb_dir_name, checkpoints_dir_name,seed)
-        indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=100)
+                           tb_dir_name, checkpoints_dir_name,seed,method="random")
+        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+        indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=stepsize)
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "random",seed,train_dataloader.dataset.get_fraction()])
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
-        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        writer.writerow([acc,recall, precision, i*100+200, "active learning_no_weight", "random",seed])
-        params = initialize_params()
+        params = initialize_params(startsize,False)
 
 def set_deterministic(seed):
     logging.info('Deterministic training enabled')
@@ -255,47 +285,64 @@ if __name__ == '__main__':
     print(device)
 
 
-    columns = [ 'test accuracy','recall','precision', 'trainingset_size', 'type', 'method','seed']
+    columns = [ 'test accuracy','recall','precision', 'trainingset_size', 'type', 'method','seed',"percentage_spray"]
 
     #logfile
-    """
+    
     file=open(args.logdir+"/modeldata/"+datetime.now().strftime("_%B%d_%H_%M_%S_")+".csv", 'w')
     writer = csv.writer(file)
     writer.writerow(columns)
-    """
+    file.flush()
 
-    file = open("logs/shitdata.txt", 'a')
+    #file = open("logs/shitdata.txt", 'a')
     # Start the training
     #active learning uncertainty
 
     #seedlist=[69,420,1337,42069,69420]
-    #seedlist=[0,1,2,3,4,5,6,7,8,9]
+    seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
-    seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+    #seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+    startsize=500
+    stepsize=500
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            """
+            
             set_deterministic(seed)
-            params=initialize_params()
+            params=initialize_params(startsize,True)
             train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-            uncertainty_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer)
+            uncertainty_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer,stepsize,startsize)
             file.flush()
             set_deterministic(seed)
-            params=initialize_params()
+            params=initialize_params(startsize,True)
             train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-            random_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer)
+            random_training(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer,stepsize,startsize)
+            file.flush()
+            set_deterministic(seed)
+            params=initialize_params(startsize,True)
+            train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+            uncertainty_training_carlo(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer,stepsize,startsize)
+            file.flush()
+            #set_deterministic(seed)
+            """
+            params=initialize_params(startsize,True)
+            train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+            DPP(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,writer,stepsize,startsize)
             file.flush()
             """
+
+
+    """    
     seed=0
     while(True):
         params=initialize_params()
         train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-        clean_data(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader,params,file)
+        clean_data(10,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
+                   ,params,file)
         seed+=1
 
     file.close()
-
+    """
 
     
     #embedding('./data/wheat/train_val_squares')

@@ -8,8 +8,11 @@ from torchvision import  models
 import numpy as np
 from torchvision.transforms import v2
 from sklearn.metrics import precision_score, recall_score
-
+from dppy.finite_dpps import FiniteDPP
 import torch.nn.functional as F
+
+
+from numpy.random import RandomState
 class ClassifierAccuracy():
 
     def __init__(self):
@@ -24,20 +27,6 @@ class ClassifierAccuracy():
         acc = self.correct / self.total
         return acc
     
-class BinaryClassifierAccuracy:
-    def __init__(self):
-        self.total = 0
-        self.correct = 0
-        #self.treshold=0.5.to("cuda")
-
-    def __call__(self, outputs, targets):
-
-        predictions = (outputs.sigmoid().squeeze() > 0.5).long()
-        
-        self.total += targets.size(0)
-        self.correct += predictions.eq(targets).sum().item()
-        acc = self.correct / self.total
-        return acc
 
 def validation_classifier(model, dataloader, criterion, device):
     """Validate the classifier
@@ -89,7 +78,7 @@ def train_epoch_classifier(model, dataloader, optimizer, criterion, device, log_
 
 
 def train_classifier(params, train_dataloader, val_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,seed=0):
+                     tb_dir_name, checkpoints_dir_name,seed=0,method=""):
     """Train a classifier model for a number of epochs on the given device
     """
 
@@ -106,6 +95,7 @@ def train_classifier(params, train_dataloader, val_dataloader, device,
         lr = params.optimizer.param_groups[0]['lr']
         logging.info('Epoch: %d, lr: %f' % (epoch + 1, lr))
         logging.info('Seed: %d' , seed)
+        logging.info('method:'+method)
         tb.add_scalar('Train/LearningRate', lr, epoch)
 
         def log_fn(inputs):
@@ -173,20 +163,18 @@ def select_uncertain(params, unl_dataloader, device,
     params.model = params.model.to(device)
     params.model.eval()
     uncertainties = []
-    all_indices = [j for j in range(0, unl_dataloader.__len__())]
+    all_indices = [j for j in range(0, unl_dataloader.dataset.__len__())]
     progress_bar = tqdm(unl_dataloader)
-    #enable_dropout(params.model)#for monte carlo dropout
     with torch.no_grad():
         for i, (inputs, _) in enumerate(progress_bar):
             inputs = inputs.to(device)
-
-            #uncertainty=monte_carlo_uncertainty(inputs,params.model)
             uncertainty = calculate_uncertainty(inputs,params.model)
             uncertainties.extend(uncertainty.cpu().numpy())
 
     # Sort samples by uncertainty
     indices_uncertainties = list(zip(all_indices, uncertainties))
-    indices_uncertainties.sort(key=lambda x: x[1])#, reverse=True)  # Sort by uncertainty, descending
+    indices_uncertainties.sort(key=lambda x: x[1])  
+
     
     # Split the dataset
     uncertain_indices = [idx for idx, _ in indices_uncertainties[:split_size]]
@@ -195,6 +183,30 @@ def select_uncertain(params, unl_dataloader, device,
     
     return uncertain_indices
 
+def select_uncertain_carlo(params, unl_dataloader, device,
+                     tb_dir_name, checkpoints_dir_name,split_size=500):
+    state = torch.load(os.path.join(checkpoints_dir_name, 'best.pt'))
+    params.model.load_state_dict(state['net'])
+    params.model = params.model.to(device)
+    params.model.eval()
+    uncertainties = []
+    all_indices = [j for j in range(0, unl_dataloader.dataset.__len__())]
+    progress_bar = tqdm(unl_dataloader)
+    enable_dropout(params.model)#for monte carlo dropout
+    with torch.no_grad():
+        for i, (inputs, _) in enumerate(progress_bar):
+            inputs = inputs.to(device)
+            uncertainty=monte_carlo_uncertainty(inputs,params.model)
+            uncertainties.extend(uncertainty.cpu().numpy())
+
+    # Sort samples by uncertainty
+    indices_uncertainties = list(zip(all_indices, uncertainties))
+    indices_uncertainties.sort(key=lambda x: x[1],reverse=True)
+    
+    # Split the dataset
+    uncertain_indices = [idx for idx, _ in indices_uncertainties[:split_size]]
+
+    return uncertain_indices
 
 def test_model(params, test_dataloader, device,checkpoints_dir_name):
     state = torch.load(os.path.join(checkpoints_dir_name, 'best.pt'))
@@ -214,7 +226,7 @@ def test_model(params, test_dataloader, device,checkpoints_dir_name):
             predicted_classes = outputs.argmax(dim=1)
             all_outputs.extend(predicted_classes.cpu().numpy())          
             acc = calc_accuracy(outputs, targets)
-            progress_bar.set_description('Test Acc: %.3f%%' , 100. * acc)
+            progress_bar.set_description(f'Test Acc: {100. * acc:.3f}%')
     precision = precision_score(all_targets, all_outputs, pos_label=1)
     recall = recall_score(all_targets, all_outputs, pos_label=1)
     return acc*100,precision,recall
@@ -261,19 +273,15 @@ def get_vectors(params, dataloader, device,checkpoints_dir_name):
     model=params.model.eval()
     model.classifier = torch.nn.Identity()
     progress_bar = tqdm(dataloader)
+    progress_bar.set_description("get vectors")
     model.to(device)
     vectors=[]
     with torch.no_grad():
-        i=0
         for batch_idx, (inputs, targets) in enumerate(progress_bar):
             inputs = inputs.to(device)
             outputs = model(inputs)
             vectors.extend(outputs)
-            print(outputs)
-            if i==1:
-                print(vectors)
-                break
-            i+=1
+
         
     return vectors
 
@@ -285,14 +293,54 @@ def get_uncertainty(params, unl_dataloader, device,
     params.model.eval()
     uncertainties = []
     progress_bar = tqdm(unl_dataloader)
+    progress_bar.set_description("get uncertainty")
     #enable_dropout(params.model)#for monte carlo dropout
     with torch.no_grad():
         for i, (inputs, _) in enumerate(progress_bar):
             inputs = inputs.to(device)
-
             #uncertainty=monte_carlo_uncertainty(inputs,params.model)
             uncertainty = calculate_uncertainty(inputs,params.model)
-            uncertainties.extend(uncertainty.cpu().numpy())
+            uncertainties.extend(uncertainty)
 
     
     return uncertainties
+
+def DPP_div_unc(params, unl_dataloader, device,
+                     checkpoints_dir_name,size=500):
+    uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
+    vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
+    num_items=unl_dataloader.dataset.__len__()
+    L = np.zeros((num_items,num_items ))
+    logging.info("calculate matrix")
+    """
+    for i in range(num_items):
+        for j in range(num_items):
+            dot_product = np.dot(vectors[i], vectors[j])
+            norm_i = np.linalg.norm(vectors[i])
+            norm_j = np.linalg.norm(vectors[j])
+            similarity = dot_product / (norm_i * norm_j)
+            uncertainty=max(uncertainties[i],uncertainties[j])
+            L[i, j] = 0.4*uncertainty + 0.6*similarity
+    """
+    vectors = torch.stack(vectors).to(device)
+    uncertainties = torch.stack(uncertainties).to(device)
+    # Normalize vectors to unit norm
+    norms = torch.norm(vectors, p=2, dim=1, keepdim=True)
+    normalized_vectors = vectors / norms
+
+    # Compute cosine similarity matrix
+    similarity_matrix = torch.mm(normalized_vectors, normalized_vectors.t()).cpu().numpy()
+
+    #Expand uncertainties to a matrix
+    uncertainty_matrix = torch.max(uncertainties.unsqueeze(1), uncertainties.unsqueeze(0)).cpu().numpy()
+
+    # Combine similarity and uncertainty
+    L = 0.4 * uncertainty_matrix + 0.6 * similarity_matrix
+    logging.info("DPP")
+    dpp = FiniteDPP('likelihood', L=L)
+    rng = RandomState(123)
+    # Sample x diverse items    75.5
+    dpp.sample_mcmc_k_dpp(size=size, random_state=rng)  
+    #dpp.sample_exact_k_dpp(size=size)
+    sampled_indices = dpp.list_of_samples[-1]
+    return sampled_indices
