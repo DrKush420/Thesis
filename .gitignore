@@ -12,6 +12,8 @@ den_tokke.txt
 bin/
 data/
 logs/
+methods/
+nets/
 
 # model weights
 *.pt
