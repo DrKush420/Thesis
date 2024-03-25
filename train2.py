@@ -192,20 +192,22 @@ def create_dataloaders(params):
 
 def disagreement(cycles,seed,train_dataloader, val_dataloader,test_dataloader,params
                          ,unlabelled_dataloader,writer,stepsize,startsize):
-    params_aux = initialize_params()
+    params_aux = auxiliary()
     for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="primary_")
         utils.train_classifier(params_aux, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="auxiliary_")
         acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        disagree_indices=utils.select_uncertain(params, unlabelled_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,split_size=stepsize)
+        disagree_indices=utils.select_disagreement(params,params_aux, unlabelled_dataloader, device,
+                     tb_dir_name, checkpoints_dir_name,size=stepsize)
+        """uncertain en diversity on disagreed set"""
         writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "disagreement",seed,train_dataloader.dataset.get_fraction()])
         uncertain_data=unlabelled_dataloader.dataset.get_data(disagree_indices)
         train_dataloader.dataset.add_data(uncertain_data)
         unlabelled_dataloader.dataset.remove_data(disagree_indices)
         params = initialize_params()
+        params_aux = auxiliary()
 
 
 def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
