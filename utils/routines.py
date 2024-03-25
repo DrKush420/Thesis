@@ -334,7 +334,7 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
     already_selected = np.array(already_selected)
 
     with torch.no_grad():
-        np.random.seed(random_seed)
+        #np.random.seed(random_seed)
         if already_selected.__len__() == 0:
             select_result = np.zeros(sample_num, dtype=bool)
             # Randomly select one initial point.
@@ -366,38 +366,29 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
             dis_matrix[num_of_already_selected + i, ~select_result] = metric(matrix[[p]], matrix[~select_result])
             mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
     return index[select_result]
+def metric(vec_i,vec_j):
+    return F.cosine_similarity(vec_i[:-1], vec_j[:-1])*0.6+max(vec_j[-1],vec_i[-1])
 
 
 def DPP_div_unc(params, unl_dataloader, device,
                      checkpoints_dir_name,size=500):
     uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
     vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
+    
+    combined_list = [torch.cat((vec, unc)) for vec, unc in zip(vectors, uncertainties)]
+    big_tensor = torch.stack(combined_list)
+    indices=k_center_greedy(big_tensor, size, metric, device)
+
+    """
     num_items=unl_dataloader.dataset.__len__()
     L = np.zeros((num_items,num_items ))
     logging.info("calculate matrix")
-    """
-    for i in range(num_items):
-        for j in range(num_items):
-            dot_product = np.dot(vectors[i], vectors[j])
-            norm_i = np.linalg.norm(vectors[i])
-            norm_j = np.linalg.norm(vectors[j])
-            similarity = dot_product / (norm_i * norm_j)
-            uncertainty=max(uncertainties[i],uncertainties[j])
-            L[i, j] = 0.4*uncertainty + 0.6*similarity
-    """
     vectors = torch.stack(vectors).to(device)
     uncertainties = torch.stack(uncertainties).to(device)
-    # Normalize vectors to unit norm
     norms = torch.norm(vectors, p=2, dim=1, keepdim=True)
     normalized_vectors = vectors / norms
-
-    # Compute cosine similarity matrix
     similarity_matrix = torch.mm(normalized_vectors, normalized_vectors.t()).cpu().numpy()
-
-    #Expand uncertainties to a matrix
     uncertainty_matrix = torch.max(uncertainties.unsqueeze(1), uncertainties.unsqueeze(0)).cpu().numpy()
-
-    # Combine similarity and uncertainty
     L = 0.4 * uncertainty_matrix + 0.6 * similarity_matrix
     logging.info("DPP")
     dpp = FiniteDPP('likelihood', L=L)
@@ -406,6 +397,8 @@ def DPP_div_unc(params, unl_dataloader, device,
     dpp.sample_mcmc_k_dpp(size=size, random_state=rng)  
     #dpp.sample_exact_k_dpp(size=size)
     sampled_indices = dpp.list_of_samples[-1]
+    """
+    
     return sampled_indices
 
 
