@@ -371,13 +371,13 @@ def metric(vec_i,vec_j):
 
 
 def DPP_div_unc(params, unl_dataloader, device,
-                     checkpoints_dir_name,size=500):
+                    tb_dir_name, checkpoints_dir_name,split_size=500):
     uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
     vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
-    
-    combined_list = [torch.cat((vec, unc)) for vec, unc in zip(vectors, uncertainties)]
-    big_tensor = torch.stack(combined_list)
-    indices=k_center_greedy(big_tensor, size, metric, device)
+    uncertainties = torch.stack(uncertainties).unsqueeze(1)
+    vectors = torch.stack(vectors)
+    list=torch.cat((vectors, uncertainties),1)
+    indices=k_center_greedy(list, split_size, metric, device,already_selected=[])
 
     """
     num_items=unl_dataloader.dataset.__len__()
@@ -399,7 +399,7 @@ def DPP_div_unc(params, unl_dataloader, device,
     sampled_indices = dpp.list_of_samples[-1]
     """
     
-    return sampled_indices
+    return indices
 
 
 def select_disagreement(params,params_aux, unlabelled_dataloader, device,

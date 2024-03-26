@@ -60,7 +60,7 @@ def initialize_params(startsize,data):
     params = utils.Params()
 
     # Network
-    params.batch_size = 32
+    params.batch_size = 64
     params.input_size = (224, 224)
     params.num_classes = 2
     params.model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
@@ -335,14 +335,16 @@ if __name__ == '__main__':
     seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
     #seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-    startsize=500
-    stepsize=500
+    startsize=1200
+    stepsize=1200
+    steps=10
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            #active_learning(seed,utils.select_uncertain,"active learning","uncertainty",steps=10)
-            #active_learning(seed,utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",steps=10)
-            active_learning(seed,utils.DPP_div_unc,"active learning","DPP_diversity_uncertainty",steps=10)
+            active_learning(seed,utils.select_uncertain,"active learning","uncertainty",steps=steps)
+            active_learning(seed,utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",steps=steps)
+            random_training(seed,steps=steps)
+            #active_learning(seed,utils.DPP_div_unc,"active learning","DPP_diversity_uncertainty",steps=steps)
 
 
     """    

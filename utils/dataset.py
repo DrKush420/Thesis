@@ -30,10 +30,11 @@ def get_train_val_split(root, val_fraction=0.2, val_group=0):
     return train_images, val_images
 
 
-def get_datasets_split(root, training_size=200, test_size=1000,validation_size=200,seed=1):
+def get_datasets_split(root, training_size=200, test_size=3500,validation_size=1000,seed=1):
 
 
     all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
+    print(len(all_images))
     #np.random.seed(seed)
     gen = np.random.default_rng(1)                                  # new random generator with known seed
     gen.shuffle(all_images)   
