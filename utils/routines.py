@@ -366,17 +366,32 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
             dis_matrix[num_of_already_selected + i, ~select_result] = metric(matrix[[p]], matrix[~select_result])
             mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
     return index[select_result]
+
 def metric(vec_i,vec_j):
-    return F.cosine_similarity(vec_i[:-1], vec_j[:-1])*0.6+max(vec_j[-1],vec_i[-1])
+    """
+    i=vec_i[-1]
+    j=vec_j[-1]
+    vec_i=vec_i[:-1]
+    vec_j=vec_j[:-1]
+    """
+    print(len(vec_i))
+    print(len(vec_j))
+    return F.cosine_similarity(vec_i[:-1], vec_j[:-1])*0.6+torch.max(vec_j[-1],vec_i[-1])
 
 
 def DPP_div_unc(params, unl_dataloader, device,
                     tb_dir_name, checkpoints_dir_name,split_size=500):
     uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
+    
     vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
+
     uncertainties = torch.stack(uncertainties).unsqueeze(1)
     vectors = torch.stack(vectors)
+    print(uncertainties.shape)
+    print(vectors.shape)
     list=torch.cat((vectors, uncertainties),1)
+    print(list[0].shape)
+    zeros_list = [0 for _ in range(unl_dataloader.dataset.__len__())]
     indices=k_center_greedy(list, split_size, metric, device,already_selected=[])
 
     """

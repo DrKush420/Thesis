@@ -233,12 +233,14 @@ def random_training(seed,steps=10):
     set_deterministic(seed)
     params=initialize_params(startsize,True)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-    for i in range(0,steps):
+    for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="random")
         acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=stepsize)
         writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "random",seed,train_dataloader.dataset.get_fraction()])
+        if i==steps-1:
+            break
+        indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=stepsize)
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
         params = initialize_params(startsize,False)
@@ -252,9 +254,11 @@ def active_learning(seed,function,type,method,steps=10):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method=method)
         acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, type, method,seed,train_dataloader.dataset.get_fraction()])
+        if i==steps-1:
+            break
         indexes=function(params, unlabelled_dataloader, device,
                      tb_dir_name, checkpoints_dir_name,split_size=stepsize)
-        writer.writerow([acc,recall, precision, i*stepsize+startsize, type, method,seed,train_dataloader.dataset.get_fraction()])
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
         params = initialize_params(startsize,False)
@@ -331,7 +335,6 @@ if __name__ == '__main__':
     # Start the training
     #active learning uncertainty
 
-    #seedlist=[69,420,1337,42069,69420]
     seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
     #seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
