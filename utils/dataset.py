@@ -34,7 +34,6 @@ def get_datasets_split(root, training_size=200, test_size=3500,validation_size=1
 
 
     all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
-    print(len(all_images))
     #np.random.seed(seed)
     gen = np.random.default_rng(1)                                  # new random generator with known seed
     gen.shuffle(all_images)   
