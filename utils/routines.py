@@ -237,7 +237,7 @@ def select_random(len,size=500):
 
 
 
-def train_embedding(dataloader):
+def train_embedding(dataloader):# unfisnished training seperate embedding model is maybe not necesarry 
     model = models.mobilenet_v2(weights=models.MobileNet_V2_Weights.IMAGENET1K_V1)
     model.classifier = torch.nn.Identity()
     criterion = torch.nn.TripletMarginLoss(margin=0.7)
@@ -416,9 +416,34 @@ def DPP_div_unc(params, unl_dataloader, device,
     
     return indices
 
+def disagreement():
+    """could implement a treshold or treshold + must be at the other side of the 0.5 mark"""
+    return None
+
 
 def select_disagreement(params,params_aux, unlabelled_dataloader, device,
                         tb_dir_name, checkpoints_dir_name,size=500):
-    
-    model=params.model.to(device).eval()
-    aux_model=params_aux.model.to(device).eval()
+    state = torch.load(os.path.join(checkpoints_dir_name,'primary_best.pt'))
+    params.model.load_state_dict(state['net'])
+    model=params.model.eval()
+    model=model.to(device)
+    state = torch.load(os.path.join(checkpoints_dir_name,'auxiliary_best.pt'))
+    params_aux.model.load_state_dict(state['net'])
+    aux=params_aux.model.eval()
+    aux=aux.to(device)
+    progress_bar = tqdm(unlabelled_dataloader)
+    progress_bar.set_description("Looking for disagreements")
+    all_indices = [j for j in range(unlabelled_dataloader.dataset.__len__())]
+    disagreements=[]
+    with torch.no_grad():
+        for _, (inputs, _) in enumerate(progress_bar):
+            inputs = inputs.to(device)
+            output1 = model(inputs)
+            output2 = aux(inputs)
+            dis=torch.abs(torch.softmax(output1, dim=1)[:,1]-torch.softmax(output2, dim=1)[:,1])#higher value =higher disagreement
+            disagreements.extend(dis.cpu().numpy())
+    indices_disagreement = list(zip(all_indices, disagreements))
+    indices_disagreement.sort(key=lambda x: x[1],reverse=True)
+        
+    print(indices_disagreement[0][1])
+    return [idx for idx, _ in indices_disagreement[:size]]

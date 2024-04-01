@@ -190,24 +190,31 @@ def create_dataloaders(params):
 
 
 
-def disagreement(cycles,seed,train_dataloader, val_dataloader,test_dataloader,params
-                         ,unlabelled_dataloader,writer,stepsize,startsize):
+def disagreement(cycles,train_dataloader, val_dataloader,test_dataloader,params
+                         ,unlabelled_dataloader,writer,stepsize,startsize,seed=None):
+    if seed !=None:
+        set_deterministic(seed)
     params_aux = auxiliary()
     for i in range(0,cycles):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="primary_")
         utils.train_classifier(params_aux, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="auxiliary_")
-        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name,network="primary_")
+        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "disagreement",seed,train_dataloader.dataset.get_fraction()])
+        if i==steps-1:
+            break
         disagree_indices=utils.select_disagreement(params,params_aux, unlabelled_dataloader, device,
                      tb_dir_name, checkpoints_dir_name,size=stepsize)
-        """uncertain en diversity on disagreed set"""
-        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "disagreement",seed,train_dataloader.dataset.get_fraction()])
-        uncertain_data=unlabelled_dataloader.dataset.get_data(disagree_indices)
-        train_dataloader.dataset.add_data(uncertain_data)
-        unlabelled_dataloader.dataset.remove_data(disagree_indices)
+        """uncertain and diversity on disagreed set"""
+        indices=disagree_indices
+        """for now just disagreement"""
+        selected_data=unlabelled_dataloader.dataset.get_data(indices)
+        train_dataloader.dataset.add_data(selected_data)
+        unlabelled_dataloader.dataset.remove_data(selected_data)
         params = initialize_params()
         params_aux = auxiliary()
+    
 
 
 def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
@@ -229,8 +236,9 @@ def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unla
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
         params = initialize_params()
 
-def random_training(seed,steps=10):
-    set_deterministic(seed)
+def random_training(seed=None,steps=10):
+    if seed !=None:
+        set_deterministic(seed)
     params=initialize_params(startsize,True)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
     for i in range(steps):
@@ -244,10 +252,12 @@ def random_training(seed,steps=10):
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
         params = initialize_params(startsize,False)
+    file.flush()
 
 
-def active_learning(seed,function,type,method,steps=10):
-    set_deterministic(seed)
+def active_learning(function,type,method,seed=None,steps=10):
+    if seed !=None:
+        set_deterministic(seed)
     params=initialize_params(startsize,True)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
     for i in range(0,steps):
@@ -304,10 +314,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     
-    
-    sleeptime = 8 * 60 * 60
-    # Pause the program for 8 hours
-    #time.sleep(sleeptime)
 
     # create logging directory
     tb_dir_name, checkpoints_dir_name = utils.prepare_logdir(args.logdir, args.config)
@@ -344,9 +350,9 @@ if __name__ == '__main__':
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            active_learning(seed,utils.select_uncertain,"active learning","uncertainty",steps=steps)
-            active_learning(seed,utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",steps=steps)
-            random_training(seed,steps=steps)
+            active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps)
+            active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps)
+            random_training(seed=seed,steps=steps)
             #active_learning(seed,utils.DPP_div_unc,"active learning","DPP_diversity_uncertainty",steps=steps)
 
 
