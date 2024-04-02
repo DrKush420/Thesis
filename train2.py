@@ -190,12 +190,13 @@ def create_dataloaders(params):
 
 
 
-def disagreement(cycles,train_dataloader, val_dataloader,test_dataloader,params
-                         ,unlabelled_dataloader,writer,stepsize,startsize,seed=None):
+def disagreement(seed=None):
     if seed !=None:
         set_deterministic(seed)
+    params=initialize_params(startsize,True)
+    train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
     params_aux = auxiliary()
-    for i in range(0,cycles):
+    for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="primary_")
         utils.train_classifier(params_aux, train_dataloader, val_dataloader, device,
@@ -212,7 +213,7 @@ def disagreement(cycles,train_dataloader, val_dataloader,test_dataloader,params
         selected_data=unlabelled_dataloader.dataset.get_data(indices)
         train_dataloader.dataset.add_data(selected_data)
         unlabelled_dataloader.dataset.remove_data(selected_data)
-        params = initialize_params()
+        params = initialize_params(startsize,False)
         params_aux = auxiliary()
     
 
