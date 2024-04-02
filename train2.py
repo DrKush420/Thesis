@@ -351,10 +351,11 @@ if __name__ == '__main__':
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps)
-            active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps)
-            random_training(seed=seed,steps=steps)
+            #active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps)
+            #active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps)
+            #random_training(seed=seed,steps=steps)
             #active_learning(seed,utils.DPP_div_unc,"active learning","DPP_diversity_uncertainty",steps=steps)
+            disagreement(seed=seed)
 
 
     """    
