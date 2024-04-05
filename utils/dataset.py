@@ -30,18 +30,19 @@ def get_train_val_split(root, val_fraction=0.2, val_group=0):
     return train_images, val_images
 
 
-def get_datasets_split(root, training_size=200, test_size=3500,validation_size=1000,seed=1):
+def get_datasets_split(root, training_size=200,validation_size=1000,seed=1,test_group=0):
 
 
     all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
     #np.random.seed(seed)
-    gen = np.random.default_rng(1)                                  # new random generator with known seed
+    gen = np.random.default_rng(seed)                                  # new random generator with known seed
     gen.shuffle(all_images)   
-
-    training_images = all_images[:training_size]
-    test_images = all_images[training_size:test_size+training_size]
-    validation_images = all_images[test_size+training_size:test_size+training_size+validation_size]
-    unlabelled_images = all_images[test_size+training_size+validation_size:]
+    groups = np.array_split(all_images, 5)    # 20% of total dataset is testset
+    test_images = groups.pop(0)  
+    images = np.concatenate(groups)   
+    training_images = images[:training_size]
+    validation_images = images[training_size:training_size+validation_size]
+    unlabelled_images = images[training_size+validation_size:]
     
 
     return training_images, unlabelled_images, test_images,validation_images

@@ -367,16 +367,16 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
             mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
     return index[select_result]
 
-def metric(vec_i,vec_j):
-    """
-    i=vec_i[-1]
-    j=vec_j[-1]
-    vec_i=vec_i[:-1]
-    vec_j=vec_j[:-1]
-    """
-    print(len(vec_i))
-    print(len(vec_j))
-    return F.cosine_similarity(vec_i[:-1], vec_j[:-1])*0.6+torch.max(vec_j[-1],vec_i[-1])
+def metric(batch1,batch2):
+    uncertaintie1=batch1[:,-1:]
+    uncertaintie2=batch2[:,-1:]
+    batch1=batch1[:,:-1]
+    batch2=batch2[:,:-1]
+    norm1= F.normalize(batch1, p=2, dim=1)
+    norm2 = F.normalize(batch2, p=2, dim=1)
+    uncertainty_matrix = torch.max(uncertaintie1.unsqueeze(1), uncertaintie2.unsqueeze(0)).cpu().numpy()
+    similarity_matrix = torch.mm(norm1, norm2.t())
+    return similarity_matrix*0.6+0.4*uncertainty_matrix
 
 
 def DPP_div_unc(params, unl_dataloader, device,
