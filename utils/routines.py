@@ -78,7 +78,7 @@ def train_epoch_classifier(model, dataloader, optimizer, criterion, device, log_
 
 
 def train_classifier(params, train_dataloader, val_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,seed=0,method="",network=""):
+                     tb_dir_name, checkpoints_dir_name,seed=0,method="",network="",training_function=train_epoch_classifier,unlabelled_dataloader=None):
     """Train a classifier model for a number of epochs on the given device
     """
 
@@ -100,8 +100,10 @@ def train_classifier(params, train_dataloader, val_dataloader, device,
 
         def log_fn(inputs):
             tb.add_images('preprocessed images', inputs[:5, ...], epoch)
-
-        train_loss, train_acc = train_epoch_classifier(params.model, train_dataloader, params.optimizer, params.criterion, device, log_fn)
+        if (unlabelled_dataloader!=None):
+            train_loss, train_acc = training_function(params.model, train_dataloader, params.optimizer, params.criterion, device, unlabelled_dataloader)
+        else:
+            train_loss, train_acc = train_epoch_classifier(params.model, train_dataloader, params.optimizer, params.criterion, device, log_fn)
         logging.info('Train Loss: %.3f | Train Acc: %.3f%%', train_loss, train_acc * 100)
         tb.add_scalar('Train/Loss', train_loss, epoch)
         tb.add_scalar('Train/Acc', train_acc * 100, epoch)
@@ -367,19 +369,20 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
             mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
     return index[select_result]
 
-def metric(batch1,batch2):
-    uncertaintie1=batch1[:,-1:]
-    uncertaintie2=batch2[:,-1:]
-    batch1=batch1[:,:-1]
-    batch2=batch2[:,:-1]
-    norm1= F.normalize(batch1, p=2, dim=1)
-    norm2 = F.normalize(batch2, p=2, dim=1)
-    uncertainty_matrix = torch.max(uncertaintie1.unsqueeze(1), uncertaintie2.unsqueeze(0)).cpu().numpy()
-    similarity_matrix = torch.mm(norm1, norm2.t())
-    return similarity_matrix*0.6+0.4*uncertainty_matrix
+def metric(batch_i,batch_j):
+    unci=batch_i[:,-1:]
+    uncj=batch_j[:,-1:]
+    batch_i=batch_i[:,:-1]
+    batch_j=batch_j[:,:-1]
+    inorm = F.normalize(batch_i, p=2, dim=1)
+    jnorm = F.normalize(batch_j, p=2, dim=1)
+    uncertainties =0.5- torch.max(unci, uncj.t())
+
+    dis =1- torch.mm(inorm, jnorm.t())
+    return dis*0.6+0.4*uncertainties
 
 
-def DPP_div_unc(params, unl_dataloader, device,
+def div_unc(params, unl_dataloader, device,
                     tb_dir_name, checkpoints_dir_name,split_size=500):
     uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
     

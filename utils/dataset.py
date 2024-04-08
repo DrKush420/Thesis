@@ -38,7 +38,7 @@ def get_datasets_split(root, training_size=200,validation_size=1000,seed=1,test_
     gen = np.random.default_rng(seed)                                  # new random generator with known seed
     gen.shuffle(all_images)   
     groups = np.array_split(all_images, 5)    # 20% of total dataset is testset
-    test_images = groups.pop(0)  
+    test_images = groups.pop(3)  
     images = np.concatenate(groups)   
     training_images = images[:training_size]
     validation_images = images[training_size:training_size+validation_size]
