@@ -268,6 +268,7 @@ def select_disagreement(params,params_aux, unlabelled_dataloader, device,
             disagreements.extend(dis.cpu().numpy())
     indices_disagreement = list(zip(all_indices, disagreements))
     indices_disagreement.sort(key=lambda x: x[1],reverse=True)
+    print(indices_disagreement[0],indices_disagreement[size])
         
     print(indices_disagreement[0][1])
     return [idx for idx, _ in indices_disagreement[:size]]

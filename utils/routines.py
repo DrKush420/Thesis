@@ -90,7 +90,7 @@ def train_classifier(params, train_dataloader, val_dataloader, device,
         lr = params.optimizer.param_groups[0]['lr']
         logging.info('Epoch: %d, lr: %f' % (epoch + 1, lr))
         logging.info('Seed: %d' , seed)
-        logging.info('method:'+method+network+training_function.__name__)
+        logging.info('method:'+method+network+"_"+training_function.__name__)
         tb.add_scalar('Train/LearningRate', lr, epoch)
 
         def log_fn(inputs):
