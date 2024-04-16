@@ -29,11 +29,19 @@ def get_train_val_split(root, val_fraction=0.2, val_group=0):
     train_images = np.concatenate(groups)                           # use the remaining groups for training set
     return train_images, val_images
 
+def get_unlabelled_data():
 
-def get_datasets_split(root, training_size=200,validation_size=1000,seed=1,test_group=0):
+
+    return
+
+def get_datasets_split(root, training_size=200,validation_size=1000,seed=1,test_group=0,more_data=True):
 
 
+    extra_data_path="./data/wheat/extra_wheat"
     all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
+    if more_data:
+        all_images.extend(sorted(glob.glob(os.path.join(extra_data_path, '*/*.jpg'))))
+    print(len(all_images))
     #np.random.seed(seed)
     gen = np.random.default_rng(seed)                                  # new random generator with known seed
     gen.shuffle(all_images)   
@@ -155,7 +163,7 @@ class CropsDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.data)
     
-
+#word (nog)niet gebruikt
 class CropsDataset2(torch.utils.data.Dataset):
 
     def __init__(self, data,norm,  transforms=None):
@@ -163,6 +171,34 @@ class CropsDataset2(torch.utils.data.Dataset):
         self.data =  [(data[i], data[j]) for i in range(len(data)) for j in range(i+1, len(data))]
         self.transforms = transforms
         self.norm=norm
+        print(len(data))
+        print(len(self.data))
+        #random.shuffle(self.data)
+        self.data = random.sample(self.data, int(len(self.data)/10))
+        print(len(self.data))
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        anchor = cv2.imread(self.data[idx][0])
+        neg=cv2.imread(self.data[idx][1])
+        anchor=self.norm(image=anchor)['image']
+        pos = self.transforms(image=anchor)['image']
+        neg=self.norm(image=neg)['image']
+        anchor = anchor.transpose((2, 0, 1))  # channel first
+        pos = pos.transpose((2, 0, 1))
+        neg=neg.transpose((2, 0, 1))
+
+        return anchor,pos ,neg
+
+class CropsDataset(torch.utils.data.Dataset):
+
+    def __init__(self, data, transforms=None):
+
+        self.data =  [(data[i], data[j]) for i in range(len(data)) for j in range(i+1, len(data))]
+        self.transforms = transforms
         print(len(data))
         print(len(self.data))
         #random.shuffle(self.data)

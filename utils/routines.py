@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision.transforms import v2
 from sklearn.metrics import precision_score, recall_score
 import torch.nn.functional as F
+from copy import deepcopy
 
 class ClassifierAccuracy():
 
@@ -152,3 +153,32 @@ def test_model(params, test_dataloader, device,checkpoints_dir_name,network=''):
     recall = recall_score(all_targets, all_outputs, pos_label=1)
     return acc*100,precision,recall
 
+def update_teacher_model(student_model, teacher_model, alpha):
+    for teacher_param, student_param in zip(teacher_model.parameters(), student_model.parameters()):
+        teacher_param.data = alpha * teacher_param.data + (1 - alpha) * student_param.data
+
+def mean_teacher(teacher, dataloader, optimizer, criterion, device, unlabelled_dataloader):
+    student=teacher.deepcopy()
+    teacher.eval()
+    student.train()
+    train_loss = 0
+    calc_accuracy = ClassifierAccuracy()
+    ratio=unlabelled_dataloader.dataset.__len__()/dataloader.dataset.__len__()
+    progress_bar = tqdm(unlabelled_dataloader)
+
+    mixup = v2.MixUp(num_classes=2)
+    for batch_idx, inputs in enumerate(progress_bar):
+        inputs, targets = mixup(inputs, targets)
+        inputs, targets = inputs.to(device), targets.to(device)
+
+        optimizer.zero_grad()
+        outputs = teacher(inputs)
+        outputs = outputs
+        loss = criterion(outputs, targets)
+        loss.backward()
+        optimizer.step()
+        train_loss += loss.item()
+        acc = calc_accuracy(outputs, targets)
+        progress_bar.set_description('Train Loss: %.3f | Train Acc: %.3f%%'% (train_loss / (batch_idx + 1), 100. * acc))
+
+    return (train_loss / (batch_idx + 1)), acc
