@@ -153,6 +153,30 @@ def test_model(params, test_dataloader, device,checkpoints_dir_name,network=''):
     recall = recall_score(all_targets, all_outputs, pos_label=1)
     return acc*100,precision,recall
 
+def test_with_tracking(params, test_dataloader, device,checkpoints_dir_name,network=''):
+    state = torch.load(os.path.join(checkpoints_dir_name,network+'best.pt'))
+    params.model.load_state_dict(state['net'])
+    model=params.model.eval()
+    model=model.to(device)
+    calc_accuracy = ClassifierAccuracy()
+    progress_bar = tqdm(test_dataloader)
+    all_outputs = []
+    all_targets = []
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(progress_bar):
+            all_targets.extend(targets.numpy())
+            inputs, targets = inputs.to(device), targets.to(device)
+            targets=F.one_hot(targets).float()
+            outputs = model(inputs)
+            predicted_classes = outputs.argmax(dim=1)
+            all_outputs.extend(predicted_classes.cpu().numpy())          
+            acc = calc_accuracy(outputs, targets)
+            progress_bar.set_description(f'Test Acc: {100. * acc:.3f}%')
+    precision = precision_score(all_targets, all_outputs, pos_label=1)
+    recall = recall_score(all_targets, all_outputs, pos_label=1)
+    indices = [index for index, (target, output) in enumerate(zip(all_targets, all_outputs)) if target != output]
+    return acc*100,precision,recall,indices
+
 def update_teacher_model(student_model, teacher_model, alpha):
     for teacher_param, student_param in zip(teacher_model.parameters(), student_model.parameters()):
         teacher_param.data = alpha * teacher_param.data + (1 - alpha) * student_param.data

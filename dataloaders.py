@@ -14,6 +14,18 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 
+
+def create_dataloader(params,dataset):
+    dataloader = torch.utils.data.DataLoader(
+        dataset,
+        batch_size=params.batch_size,
+        shuffle=False,#will mess with indices for active learning!!
+        pin_memory=True,
+        num_workers=params.num_workers,
+        worker_init_fn=seed_worker,
+    )
+    return dataset
+
 def create_dataloaders(params):
     """Create dataset and dataloader for training and validation
     """
@@ -65,7 +77,7 @@ def create_dataloaders(params):
     test_dataloader = torch.utils.data.DataLoader(
         test_data,
         batch_size=params.batch_size,
-        shuffle=True,
+        shuffle=False,   #tracking mistakes difficult if true
         pin_memory=True,
         num_workers=params.num_workers,
         worker_init_fn=seed_worker,

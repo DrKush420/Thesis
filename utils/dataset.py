@@ -8,7 +8,29 @@ import numpy as np
 import imagesize
 import random
 from pathlib import Path
+import pdb
 
+
+def get_corntest( training_size=200,validation_size=1000,seed=1,test_group=0):
+    corn='./data/corn/corn'
+    original_cornset=sorted(glob.glob(os.path.join(corn+'/train_val', '**/*.jpg'),recursive=True))
+    print(f'original corn set size: {len(original_cornset)}')
+    german_corn=sorted(glob.glob(os.path.join(corn+'/german_data', '**/*.jpg'),recursive=True))
+    print(f'german corn set size: {len(german_corn)}')
+    gen = np.random.default_rng(seed)                                  # new random generator with known seed
+    gen.shuffle(original_cornset)   
+    gen.shuffle(german_corn)
+    groups = np.array_split(german_corn, 5)    # 20% of dataset is testset
+    test_images = groups.pop(3)  
+    images = np.concatenate(groups)   
+    training_images=original_cornset[:5000]
+    validation_images = np.concatenate([original_cornset[5000:6000], images[:100]])
+    unlabelled_images = np.concatenate([original_cornset[6000:], images[100:]])
+    print(len(unlabelled_images))
+    print(len(training_images))
+
+
+    return training_images, unlabelled_images, test_images,validation_images
 
 def get_train_val_split(root, val_fraction=0.2, val_group=0):
     """Return two lists of images: train_images, val_images
@@ -29,18 +51,15 @@ def get_train_val_split(root, val_fraction=0.2, val_group=0):
     train_images = np.concatenate(groups)                           # use the remaining groups for training set
     return train_images, val_images
 
-def get_unlabelled_data():
 
-
-    return
 
 def get_datasets_split(root, training_size=200,validation_size=1000,seed=1,test_group=0,more_data=True):
-
-
-    extra_data_path="./data/wheat/extra_wheat"
+    extra_data_path='./data/wheat/extra_wheat'
     all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
     if more_data:
-        all_images.extend(sorted(glob.glob(os.path.join(extra_data_path, '*/*.jpg'))))
+        extra=sorted(glob.glob(os.path.join(extra_data_path, '**/*.jpg'),recursive=True))
+        print(len(extra))
+        all_images.extend(extra)
     print(len(all_images))
     #np.random.seed(seed)
     gen = np.random.default_rng(seed)                                  # new random generator with known seed
@@ -86,6 +105,32 @@ def get_optimal_network_input_shape(img_shape, area=224*224, down_scale_fact=32)
 
     return tuple((down_scale_fact * np.round(shape / down_scale_fact)).astype('int32'))
 
+def years(data):
+
+    oud2021=0
+    d2021_05=0
+    d2021_06=0
+    d2022_05=0
+    d2022_06=0
+    d2023_06=0
+    for filename,_,_ in data:
+
+        parts=filename.split('/')
+        if parts[3]=="train_val":
+            oud2021+=1
+        elif parts[4]=="2021_05":
+            d2021_05+=1
+        elif parts[4]=="2021_06":
+            d2021_06+=1
+        elif parts[4]=="2022_05":
+            d2022_05+=1
+        elif parts[4]=="2022_06":
+            d2022_06+=1
+        elif parts[4]=="2023_06":
+            d2023_06+=1
+    if (oud2021+d2021_05+d2021_06+d2022_05+d2022_06+d2023_06)!= len(data):
+        print('fout ')
+    return oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06
 
 class CropsDataset(torch.utils.data.Dataset):
 
@@ -136,10 +181,16 @@ class CropsDataset(torch.utils.data.Dataset):
         pos_label_fraction = np.mean(labels == 1)
         return pos_label_fraction
     
+    def get_alldata(self):
+        return self.data
+
     def remove_data(self,indexes):
         indexes = set(indexes) #for increased speed 
         self.data = [item for idx, item in enumerate(self.data) if idx not in indexes]
 
+
+
+    
     def __getitem__(self, idx):
         filename, mask_coords, label = self.data[idx]
 
@@ -193,7 +244,7 @@ class CropsDataset2(torch.utils.data.Dataset):
 
         return anchor,pos ,neg
 
-class CropsDataset(torch.utils.data.Dataset):
+class CropsUnlabelledDataset(torch.utils.data.Dataset):
 
     def __init__(self, data, transforms=None):
 

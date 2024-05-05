@@ -1,0 +1,13 @@
+
+'_March21_10_50_01_.csv',
+ '_March29_18_58_37_.csv'] 1200 steps uncert
+ '_April26_10_09_42_.csv', 0div unc1
+  '_April10_13_36_44_.csv', 5000 small wheat div unc
+   '_April06_13_56_06_.csv', 5000 small wheat 4 methods
+    '_April27_16_36_32_.csv', corntest
+     '_April24_19_14_20_.csv', 0,4div unc0.6
+      '_April23_14_41_54_.csv', 1div 0unc
+    '_April16_16_41_25_.csv', 5000 big wheat 5 methods
+     '_April25_13_41_37_.csv', divers unc 50/50
+      '_April04_17_16_55_.csv', disagreement 500 before cross val
+      

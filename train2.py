@@ -11,7 +11,7 @@ from dataloaders import create_dataloaders
 
 
 
-def disagreement(seed=None):
+def disagreement(seed=None,corntest=False):
     params_aux = auxiliary()
     if seed !=None:
         set_deterministic(seed)
@@ -22,8 +22,18 @@ def disagreement(seed=None):
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="primary_")
         utils.train_classifier(params_aux, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="disagreement_",network="auxiliary_")
-        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name,network="primary_")
-        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "disagreement",seed,train_dataloader.dataset.get_fraction()])
+        if corntest:
+            acc,precision,recall,indices=utils.test_with_tracking(params, test_dataloader, device,checkpoints_dir_name,network="primary_")
+            oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06=utils.years(unlabelled_dataloader.dataset.get_alldata())
+            moud2021,m2021_05,m2021_06,m2022_05,m2022_06,m2023_06=utils.years(test_dataloader.dataset.get_data(indices))
+            writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), "active learning", "disagreement",seed,
+                             train_dataloader.dataset.get_fraction(),oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06,
+                             moud2021,m2021_05,m2021_06,m2022_05,m2022_06,m2023_06])
+        else:
+            acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name,network="primary_")
+            writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "disagreement",seed,
+                             train_dataloader.dataset.get_fraction()])
+
         if i==steps-1:
             break
         disagree_indices=utils.select_disagreement(params,params_aux, unlabelled_dataloader, device,
@@ -59,7 +69,7 @@ def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unla
         unlabelled_dataloader.dataset.remove_data(uncertain_ind)
         params = initialize_params()
 
-def random_training(seed=None,steps=10):
+def random_training(seed=None,steps=10,corntest=False):
     if seed !=None:
         set_deterministic(seed)
     params=initialize_params(startsize,True)
@@ -67,8 +77,17 @@ def random_training(seed=None,steps=10):
     for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="random")
-        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        writer.writerow([acc,recall, precision, i*stepsize+startsize, "active learning", "random",seed,train_dataloader.dataset.get_fraction()])
+        if corntest:
+            acc,precision,recall,indices=utils.test_with_tracking(params, test_dataloader, device,checkpoints_dir_name)
+            oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06=utils.years(unlabelled_dataloader.dataset.get_alldata())
+            moud2021,m2021_05,m2021_06,m2022_05,m2022_06,m2023_06=utils.years(test_dataloader.dataset.get_data(indices))
+            writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), "active learning", "random",seed,
+                             train_dataloader.dataset.get_fraction(),oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06,
+                             moud2021,m2021_05,m2021_06,m2022_05,m2022_06,m2023_06])
+        else:
+            acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+            writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), "active learning", "random",
+                             seed,train_dataloader.dataset.get_fraction()])
         if i==steps-1:
             break
         indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=stepsize)
@@ -78,16 +97,24 @@ def random_training(seed=None,steps=10):
     file.flush()
 
 
-def active_learning(function,type,method,seed=None,steps=10):
+def active_learning(function,type,method,seed=None,steps=10,corntest=False):
     if seed !=None:
         set_deterministic(seed)
     params=initialize_params(startsize,True)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-    for i in range(0,steps):
+    for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method=method)
-        acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
-        writer.writerow([acc,recall, precision, i*stepsize+startsize, type, method,seed,train_dataloader.dataset.get_fraction()])
+        if corntest:
+            acc,precision,recall,indices=utils.test_with_tracking(params, test_dataloader, device,checkpoints_dir_name)
+            oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06=utils.years(unlabelled_dataloader.dataset.get_alldata())
+            moud2021,m2021_05,m2021_06,m2022_05,m2022_06,m2023_06=utils.years(test_dataloader.dataset.get_data(indices))
+            writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), type, method,seed,
+                             train_dataloader.dataset.get_fraction(),oud2021,d2021_05,d2021_06,d2022_05,d2022_06,d2023_06,
+                             moud2021,m2021_05,m2021_06,m2022_05,m2022_06,m2023_06])
+        else:
+            acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+            writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), type, method,seed,train_dataloader.dataset.get_fraction()])
         if i==steps-1:
             break
         indexes=function(params, unlabelled_dataloader, device,
@@ -117,6 +144,8 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--deterministic', action='store_true', help='Enable deterministic training')
     parser.add_argument('-m', '--manual_seed', type=int, help='Set manual seed value for random generators', default=0)
     parser.add_argument('-sl', '--seedlist', action='store_true', help='Execute with all seeds in list')
+    parser.add_argument('-ct', '--corntest', action='store_true', help='corn dataset test')
+
     args = parser.parse_args()
     
     
@@ -133,8 +162,13 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
+    if args.corntest:
+        columns = [ 'test accuracy','recall','precision', 'trainingset_size', 'type', 'method','seed',"percentage_spray","doud2021",
+                   "d2021_05","d2021_06","d2022_05","d2022_06","d2023_06","moud2021","m2021_05","m2021_06","m2022_05"
+                   ,"m2022_06","m2023_06"]
 
-    columns = [ 'test accuracy','recall','precision', 'trainingset_size', 'type', 'method','seed',"percentage_spray"]
+    else:
+        columns = [ 'test accuracy','recall','precision', 'trainingset_size', 'type', 'method','seed',"percentage_spray"]
 
     #logfile
     
@@ -156,11 +190,11 @@ if __name__ == '__main__':
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            #active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps)
-            #active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps)
-            random_training(seed=seed,steps=steps)
-            #active_learning(utils.div_unc,"active learning","divers_uncer_kCent_greedy",seed=seed,steps=steps)
-            #disagreement(seed=seed)
+            active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps,corntest=args.corntest)
+            active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
+            random_training(seed=seed,steps=steps,corntest=args.corntest)
+            active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
+            disagreement(seed=seed,corntest=args.corntest)
 
 
     """    
@@ -175,6 +209,8 @@ if __name__ == '__main__':
     file.close()
     """
 
-    
+#original corn set size: 12876
+#german corn set size: 9696
+
     #embedding('./data/wheat/train_val_squares')
 

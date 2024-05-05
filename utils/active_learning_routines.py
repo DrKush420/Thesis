@@ -190,6 +190,11 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
             mins = torch.min(mins, dis_matrix[num_of_already_selected + i])
     return index[select_result]
 
+
+def euclid_metric():
+
+    return
+
 def metric(batch_i,batch_j):
     unci=batch_i[:,-1:]
     uncj=batch_j[:,-1:]
@@ -211,32 +216,11 @@ def div_unc(params, unl_dataloader, device,
 
     uncertainties = torch.stack(uncertainties).unsqueeze(1)
     vectors = torch.stack(vectors)
-    print(uncertainties.shape)
-    print(vectors.shape)
     list=torch.cat((vectors, uncertainties),1)
     print(list[0].shape)
     zeros_list = [0 for _ in range(unl_dataloader.dataset.__len__())]
     indices=k_center_greedy(list, split_size, metric, device,already_selected=[])
 
-    """
-    num_items=unl_dataloader.dataset.__len__()
-    L = np.zeros((num_items,num_items ))
-    logging.info("calculate matrix")
-    vectors = torch.stack(vectors).to(device)
-    uncertainties = torch.stack(uncertainties).to(device)
-    norms = torch.norm(vectors, p=2, dim=1, keepdim=True)
-    normalized_vectors = vectors / norms
-    similarity_matrix = torch.mm(normalized_vectors, normalized_vectors.t()).cpu().numpy()
-    uncertainty_matrix = torch.max(uncertainties.unsqueeze(1), uncertainties.unsqueeze(0)).cpu().numpy()
-    L = 0.4 * uncertainty_matrix + 0.6 * similarity_matrix
-    logging.info("DPP")
-    dpp = FiniteDPP('likelihood', L=L)
-    rng = RandomState(123)
-    # Sample x diverse items
-    dpp.sample_mcmc_k_dpp(size=size, random_state=rng)  
-    #dpp.sample_exact_k_dpp(size=size)
-    sampled_indices = dpp.list_of_samples[-1]
-    """
     
     return indices
 
