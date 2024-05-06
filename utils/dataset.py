@@ -146,6 +146,7 @@ class CropsDataset(torch.utils.data.Dataset):
         super().__init__()
         self.transforms = transforms
         self.apply_masks = apply_masks
+        self.ssl=None #give tranforms right before ssl methods
 
         # Build a list with tuples, where each tuple = (filename, mask_id, label)
         self.data = []
@@ -208,6 +209,11 @@ class CropsDataset(torch.utils.data.Dataset):
 
         label = torch.as_tensor(label).long()
         #target = F.one_hot(label, num_classes=2).float()
+        if self.ssl:
+            img2 = cv2.imread(filename)
+            img2=self.ssl(image=img2)['image']
+            img2 = img2.transpose((2, 0, 1))
+            img=[img,img2]
 
         return img, label
 
@@ -246,29 +252,44 @@ class CropsDataset2(torch.utils.data.Dataset):
 
 class CropsUnlabelledDataset(torch.utils.data.Dataset):
 
-    def __init__(self, data, transforms=None):
 
-        self.data =  [(data[i], data[j]) for i in range(len(data)) for j in range(i+1, len(data))]
+    def __init__(self, filenames, transforms=None):
+        super().__init__()
         self.transforms = transforms
-        print(len(data))
-        print(len(self.data))
-        #random.shuffle(self.data)
-        self.data = random.sample(self.data, int(len(self.data)/10))
-        print(len(self.data))
 
+        self.ssl=None #give tranforms right before ssl methods
+
+        # Build a list with tuples, where each tuple = (filename, mask_id, label)
+        self.data = []
+
+        for filename in filenames:
+            filename = Path(filename)
+
+
+            self.data.append(str(filename))
+
+
+
+    
+    def __getitem__(self, idx):
+        filename = self.data[idx]
+
+        img = cv2.imread(filename)
+
+        if self.transforms:
+            img = self.transforms(image=img)['image']
+
+
+        img = img.transpose((2, 0, 1))  # channel first
+
+        label = torch.as_tensor(label).long()
+        if self.ssl:
+            img2 = cv2.imread(filename)
+            img2=self.ssl(image=img2)['image']
+            img2 = img2.transpose((2, 0, 1))
+            img=[img,img2]
+
+        return img
 
     def __len__(self):
         return len(self.data)
-
-    def __getitem__(self, idx):
-        anchor = cv2.imread(self.data[idx][0])
-        neg=cv2.imread(self.data[idx][1])
-        anchor=self.norm(image=anchor)['image']
-        pos = self.transforms(image=anchor)['image']
-        neg=self.norm(image=neg)['image']
-        anchor = anchor.transpose((2, 0, 1))  # channel first
-        pos = pos.transpose((2, 0, 1))
-        neg=neg.transpose((2, 0, 1))
-
-        return anchor,pos ,neg
-
