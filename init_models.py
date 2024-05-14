@@ -57,8 +57,10 @@ def initialize_params(startsize,data,corntest=False):
     # Dataset
     #params.train_images, params.val_images = utils.get_train_val_split('D:/data/wheat/train_val_squares')#, 0.2, 0)
     if data:
-        #params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split('./data/wheat/train_val_squares',training_size=startsize)
-        params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_corntest()
+        if corntest:
+            params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_corntest()
+        else:
+            params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split('./data/wheat/train_val_squares',training_size=startsize)
 
     params.apply_masks = False
     params.train_transform = utils.train_transforms(crop_size=params.input_size, mean=0.5, std=0.5)

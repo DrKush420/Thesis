@@ -15,7 +15,14 @@ def seed_worker(worker_id):
 
 
 
-def create_dataloader(params,dataset):
+def create_unlabelled_dataloader(params,data):
+    dataset = utils.CropsUnlabelledDataset(
+        data,
+        params.input_size,
+        params.apply_masks,
+        transforms=utils.test_transform(crop_size=params.input_size),
+        transforms2=utils.ssl_transforms(crop_size=params.input_size),
+    )
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=params.batch_size,
@@ -24,7 +31,7 @@ def create_dataloader(params,dataset):
         num_workers=params.num_workers,
         worker_init_fn=seed_worker,
     )
-    return dataset
+    return dataloader
 
 def create_dataloaders(params):
     """Create dataset and dataloader for training and validation

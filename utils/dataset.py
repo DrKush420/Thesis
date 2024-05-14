@@ -11,6 +11,11 @@ from pathlib import Path
 import pdb
 
 
+def get_unlabelled_data(path):
+    data=sorted(glob.glob(os.path.join(path, '**/*.jpg'),recursive=True))
+    print(len(data))
+    return data
+
 def get_corntest( training_size=200,validation_size=1000,seed=1,test_group=0):
     corn='./data/corn/corn'
     original_cornset=sorted(glob.glob(os.path.join(corn+'/train_val', '**/*.jpg'),recursive=True))
@@ -253,11 +258,11 @@ class CropsDataset2(torch.utils.data.Dataset):
 class CropsUnlabelledDataset(torch.utils.data.Dataset):
 
 
-    def __init__(self, filenames, transforms=None):
+    def __init__(self, filenames, transforms=None,transforms2=None):
         super().__init__()
         self.transforms = transforms
 
-        self.ssl=None #give tranforms right before ssl methods
+        self.transforms2=transforms2 #give tranforms right before ssl methods
 
         # Build a list with tuples, where each tuple = (filename, mask_id, label)
         self.data = []
@@ -283,7 +288,7 @@ class CropsUnlabelledDataset(torch.utils.data.Dataset):
         img = img.transpose((2, 0, 1))  # channel first
 
         label = torch.as_tensor(label).long()
-        if self.ssl:
+        if self.transforms2:
             img2 = cv2.imread(filename)
             img2=self.ssl(image=img2)['image']
             img2 = img2.transpose((2, 0, 1))

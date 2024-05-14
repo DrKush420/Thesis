@@ -97,7 +97,7 @@ def train_classifier(params, train_dataloader, val_dataloader, device,
         def log_fn(inputs):
             tb.add_images('preprocessed images', inputs[:5, ...], epoch)
         if (unlabelled_dataloader!=None):
-            train_loss, train_acc = training_function(params.model, train_dataloader, params.optimizer, params.criterion, device, unlabelled_dataloader)
+            train_loss, train_acc = training_function(params.model, train_dataloader, params.optimizer, device, unlabelled_dataloader)
         else:
             train_loss, train_acc = train_epoch_classifier(params.model, train_dataloader, params.optimizer, params.criterion, device, log_fn)
         logging.info('Train Loss: %.3f | Train Acc: %.3f%%', train_loss, train_acc * 100)
@@ -177,32 +177,53 @@ def test_with_tracking(params, test_dataloader, device,checkpoints_dir_name,netw
     indices = [index for index, (target, output) in enumerate(zip(all_targets, all_outputs)) if target != output]
     return acc*100,precision,recall,indices
 
-def update_teacher_model(student_model, teacher_model, alpha):
-    for teacher_param, student_param in zip(teacher_model.parameters(), student_model.parameters()):
-        teacher_param.data = alpha * teacher_param.data + (1 - alpha) * student_param.data
+def update_teacher_model(student_model, teacher_model, alpha=0.95):
+    with torch.no_grad():
+        for teacher_param, student_param in zip(teacher_model.parameters(), student_model.parameters()):
+            teacher_param.data = alpha * teacher_param.data + (1 - alpha) * student_param.data
 
-def mean_teacher(teacher, dataloader, optimizer, criterion, device, unlabelled_dataloader):
-    student=teacher.deepcopy()
-    teacher.eval()
+def mean_teacher(teacher, dataloader, optimizer, device, unlabelled_dataloader):
+    criterion=torch.nn.CrossEntropyLoss()
+    consistcrit=torch.nn.MSELoss()
+    student = deepcopy(teacher)
+    teacher.train()
+    teacher.to(device)
     student.train()
+    student.to(device)
     train_loss = 0
     calc_accuracy = ClassifierAccuracy()
-    ratio=unlabelled_dataloader.dataset.__len__()/dataloader.dataset.__len__()
+    ratio=len(unlabelled_dataloader)/len(dataloader)
     progress_bar = tqdm(unlabelled_dataloader)
+    labelindex=0
 
-    mixup = v2.MixUp(num_classes=2)
     for batch_idx, inputs in enumerate(progress_bar):
-        inputs, targets = mixup(inputs, targets)
-        inputs, targets = inputs.to(device), targets.to(device)
-
+        inputs = inputs.to(device)
         optimizer.zero_grad()
-        outputs = teacher(inputs)
-        outputs = outputs
-        loss = criterion(outputs, targets)
+        student_outputs = student(inputs[:,0])
+        with torch.no_grad():
+            teacher_outputs = teacher(inputs[:,1])
+        loss=0.3*consistcrit(student_outputs,teacher_outputs)
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
-        acc = calc_accuracy(outputs, targets)
+        if int(batch_idx / ratio) == labelindex: # labelled batch 
+            optimizer.zero_grad()
+            inputs,targets=dataloader[labelindex]
+            inputs,targets = inputs.to(device), targets.to(device)
+            labelindex+=1
+            student_outputs = student(inputs[:,0])
+            with torch.no_grad():
+                teacher_outputs = teacher(inputs[:,1])
+            
+            targets=F.one_hot(targets).float()
+            loss=0.7*criterion(student_outputs,targets)+0.3*consistcrit(student_outputs,teacher_outputs)
+            acc = calc_accuracy(student_outputs, targets)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+
+        update_teacher_model(student,teacher)
         progress_bar.set_description('Train Loss: %.3f | Train Acc: %.3f%%'% (train_loss / (batch_idx + 1), 100. * acc))
+
 
     return (train_loss / (batch_idx + 1)), acc

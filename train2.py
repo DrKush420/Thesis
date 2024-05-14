@@ -7,7 +7,7 @@ import csv
 import utils
 from datetime import datetime
 from init_models import auxiliary , initialize_params
-from dataloaders import create_dataloaders
+from dataloaders import create_dataloaders,create_unlabelled_dataloader
 
 
 
@@ -49,7 +49,7 @@ def disagreement(seed=None,corntest=False):
     file.flush()
     
 
-
+#test
 def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader
                ,params,file):
     last_accuracy=0
@@ -133,6 +133,17 @@ def set_deterministic(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
+def ssl_test(seed=None):
+    
+    if seed !=None:
+        set_deterministic(seed)
+    params=initialize_params(startsize,True)
+    train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+    unlabelled_dataloader=create_unlabelled_dataloader(utils.get_unlabelled_data("./data/corn/corn/unlabelled"))#get the true unlabelled dataset and dataloader
+    utils.train_classifier(params, train_dataloader, val_dataloader, device,
+                           tb_dir_name, checkpoints_dir_name,seed,method="Mean_Teacher",training_function=utils.mean_teacher,unlabelled_dataloader=unlabelled_dataloader)
+    acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+    writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), "Mean Teacher", "No Querry Method",seed,train_dataloader.dataset.get_fraction()])
 
 
 
@@ -184,17 +195,18 @@ if __name__ == '__main__':
     seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
     #seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-    startsize=500
+    startsize=5000
     stepsize=500
     steps=10
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps,corntest=args.corntest)
-            active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
-            random_training(seed=seed,steps=steps,corntest=args.corntest)
-            active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
-            disagreement(seed=seed,corntest=args.corntest)
+            ssl_test(seed=seed)
+            #active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps,corntest=args.corntest)
+            #active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
+            #random_training(seed=seed,steps=steps,corntest=args.corntest)
+            #active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
+            #disagreement(seed=seed,corntest=args.corntest)
 
 
     """    

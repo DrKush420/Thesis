@@ -1,0 +1,77 @@
+
+ ### Setup workspace and environment
+    from azureml.core import Workspace
+    ws = Workspace(subscription_id=subscription_id,
+                   resource_group=resource_group,
+                   workspace_name=workspace_name,)
+ 
+    from azureml.core import Environment
+    from azureml.core.runconfig import RunConfiguration, DockerConfiguration
+    run_config = RunConfiguration()
+    run_config.docker = DockerConfiguration(use_docker=True)
+    run_config.environment = Environment.get(workspace=ws,name=args.environment_name,version=args.environment_version)
+ 
+    from azureml.core import ComputeTarget
+    from azureml.core.compute_target import ComputeTargetException
+    try:
+        cluster = ComputeTarget(ws, args.cluster_name)
+        
+        print('Found compute target ', args.cluster_name)
+    except ComputeTargetException:
+        print('Did not find compute target ', {args.cluster_name})
+ 
+    from azureml.core import Datastore
+    datastore = Datastore.get(ws, datastore_name=args.datastore)
+ 
+    from azureml.data.data_reference import DataReference 
+    input_clips_ref = DataReference(data_reference_name="clips_dir", datastore=datastore, path_on_datastore=args.clips_dir, mode='mount')
+  
+    from azureml.data import OutputFileDatasetConfig
+    datasets_ref = OutputFileDatasetConfig(name="dataset_dir", destination=(datastore, args.dataset_dir)).as_mount() # path to output dir for clips and yaml files
+ 
+    # Path to the training code on your local machine (will be uplaoded to the compute target)
+    project_folder = 'dataset_creation/'
+ 
+    run_args = []
+ 
+    run_args.append('--dataset_dir')
+    run_args.append(input_clips_ref)
+    
+    run_args.append('--output_dir')
+    run_args.append(datasets_ref)   
+ 
+    run_args.append('--perspective_mode')
+    run_args.append(args.perspective_mode)   
+    
+    run_args.append('--image_size')
+    run_args.append(args.image_size)   
+    
+    from azureml.pipeline.steps import PythonScriptStep
+    dataset_creation_step = PythonScriptStep(source_directory=project_folder,
+                                          script_name='video_yaml_dataset.py',
+                                          arguments=run_args,
+                                          compute_target=cluster,
+                                          runconfig=run_config,
+                                          inputs=[input_clips_ref],
+                                          outputs=[datasets_ref],
+                                          allow_reuse=False)
+ 
+    # Connect the pieces of the pipeline
+    from azureml.pipeline.core import Pipeline
+    pipeline = Pipeline(workspace=ws, steps=[dataset_creation_step])
+    pipeline.validate()
+    
+    from azureml.core import Experiment
+    # During run, a snapshot of the source_directory is created and sent to the compute target. If files are changed
+    # and the run is submitted again, only the changed files will be uploaded. Avoid keeping unnecessary files from
+    # being included in the snapshot, make .gitignore if necessary.
+    pipeline_run = Experiment(workspace=ws, name=args.experiment_name)
+    # today's UTC date in timestamp
+    iso_date = datetime.datetime.utcnow().replace(microsecond=0).strftime("%Y-%m-%dT%H-%M-%S")
+    pipeline_run.display_name = "DatasetCreation_" + iso_date
+    
+    pipeline_run = pipeline_run.submit(pipeline)
+ 
+    if 1:
+        pipeline_run.wait_for_completion(show_output=True)
+ 

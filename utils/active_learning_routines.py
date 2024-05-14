@@ -191,15 +191,28 @@ def k_center_greedy(matrix, budget: int, metric, device, random_seed=None, index
     return index[select_result]
 
 
-def euclid_metric():
+def euclid_metric(batch_i,batch_j):
+    unci=batch_i[:,-1:]
+    uncj=batch_j[:,-1:]
+    veci=batch_i[:,:-1]
+    vecj=batch_j[:,:-1]
+    veci = F.normalize(veci, p=2, dim=1)
+    vecj = F.normalize(vecj, p=2, dim=1)
+    uncertainties =0.5- torch.max(unci, uncj.t())
+    veci = veci.unsqueeze(1)  
+    vecj = vecj.unsqueeze(0)  
 
-    return
+    dis = torch.sqrt(torch.sum((veci - vecj) ** 2, dim=-1))
+
+    return dis*0.6+0.4*uncertainties
 
 def metric(batch_i,batch_j):
     unci=batch_i[:,-1:]
     uncj=batch_j[:,-1:]
+    print(batch_i.shape)
     batch_i=batch_i[:,:-1]
     batch_j=batch_j[:,:-1]
+    print(batch_i.shape)
     inorm = F.normalize(batch_i, p=2, dim=1)
     jnorm = F.normalize(batch_j, p=2, dim=1)
     uncertainties =0.5- torch.max(unci, uncj.t())
@@ -218,7 +231,6 @@ def div_unc(params, unl_dataloader, device,
     vectors = torch.stack(vectors)
     list=torch.cat((vectors, uncertainties),1)
     print(list[0].shape)
-    zeros_list = [0 for _ in range(unl_dataloader.dataset.__len__())]
     indices=k_center_greedy(list, split_size, metric, device,already_selected=[])
 
     
@@ -256,3 +268,26 @@ def select_disagreement(params,params_aux, unlabelled_dataloader, device,
         
     print(indices_disagreement[0][1])
     return [idx for idx, _ in indices_disagreement[:size]]
+
+
+def div_unc_trainingset_included(params, unl_dataloader, device,
+                    tb_dir_name, checkpoints_dir_name,train_dataloader,split_size=500):
+    
+
+    uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
+    vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
+    uncertainties.extend(get_uncertainty(params, train_dataloader, device,checkpoints_dir_name))
+    vectors.extend(get_vectors(params, train_dataloader, device,checkpoints_dir_name))
+    uncertainties = torch.stack(uncertainties).unsqueeze(1)
+    vectors = torch.stack(vectors)
+    list=torch.cat((vectors, uncertainties),1)
+    print(list[0].shape)
+    indices=[]
+    while len(indices)!=split_size:
+
+        newindices=k_center_greedy(list, split_size-len(indices), metric, device,already_selected=indices)
+
+        indices.extend( [index for index in newindices if index < unl_dataloader.dataset.__len__() and index not in indices])
+
+    
+    return indices
