@@ -15,7 +15,7 @@ def disagreement(seed=None,corntest=False):
     params_aux = auxiliary()
     if seed !=None:
         set_deterministic(seed)
-    params=initialize_params(startsize,True)
+    params=initialize_params(startsize,True,root)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
     for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
@@ -44,7 +44,7 @@ def disagreement(seed=None,corntest=False):
         selected_data=unlabelled_dataloader.dataset.get_data(indices)
         train_dataloader.dataset.add_data(selected_data)
         unlabelled_dataloader.dataset.remove_data(indices)
-        params = initialize_params(startsize,False)
+        params = initialize_params(startsize,False,root)
         params_aux = auxiliary()
     file.flush()
     
@@ -72,7 +72,7 @@ def clean_data(cycles,seed,train_dataloader, val_dataloader,test_dataloader,unla
 def random_training(seed=None,steps=10,corntest=False):
     if seed !=None:
         set_deterministic(seed)
-    params=initialize_params(startsize,True)
+    params=initialize_params(startsize,True,root)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
     for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
@@ -93,14 +93,14 @@ def random_training(seed=None,steps=10,corntest=False):
         indexes=utils.select_random(unlabelled_dataloader.dataset.__len__(),size=stepsize)
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
-        params = initialize_params(startsize,False)
+        params = initialize_params(startsize,False,root)
     file.flush()
 
 
 def active_learning(function,type,method,seed=None,steps=10,corntest=False):
     if seed !=None:
         set_deterministic(seed)
-    params=initialize_params(startsize,True)
+    params=initialize_params(startsize,True,root)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
     for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
@@ -121,7 +121,7 @@ def active_learning(function,type,method,seed=None,steps=10,corntest=False):
                      tb_dir_name, checkpoints_dir_name,split_size=stepsize)
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
-        params = initialize_params(startsize,False)
+        params = initialize_params(startsize,False,root)
     file.flush()
     
 def set_deterministic(seed):
@@ -133,17 +133,24 @@ def set_deterministic(seed):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-def ssl_test(seed=None):
+def ssl_test(seed=None,method=""):
     
     if seed !=None:
         set_deterministic(seed)
-    params=initialize_params(startsize,True)
+    params=initialize_params(startsize,True,root)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
-    unlabelled_dataloader=create_unlabelled_dataloader(utils.get_unlabelled_data("./data/corn/corn/unlabelled"))#get the true unlabelled dataset and dataloader
+    train_dataloader.dataset.ssl=utils.ssl_transforms(crop_size=params.input_size)
+    unlabelled_dataloader=create_unlabelled_dataloader(params,utils.get_unlabelled_data("./data/corn/corn/unlabelled"))#get the true unlabelled dataset and dataloader
     utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="Mean_Teacher",training_function=utils.mean_teacher,unlabelled_dataloader=unlabelled_dataloader)
     acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
     writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), "Mean Teacher", "No Querry Method",seed,train_dataloader.dataset.get_fraction()])
+
+    utils.train_classifier(params, train_dataloader, val_dataloader, device,
+                           tb_dir_name, checkpoints_dir_name,seed,method="standard")
+    acc,precision,recall=utils.test_model(params, test_dataloader, device,checkpoints_dir_name)
+    writer.writerow([acc,recall, precision, train_dataloader.dataset.__len__(), "Normal Training", "No Querry Method",seed,train_dataloader.dataset.get_fraction()])
+
 
 
 
@@ -156,9 +163,10 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--manual_seed', type=int, help='Set manual seed value for random generators', default=0)
     parser.add_argument('-sl', '--seedlist', action='store_true', help='Execute with all seeds in list')
     parser.add_argument('-ct', '--corntest', action='store_true', help='corn dataset test')
+    parser.add_argument("-root", "--dataroot", help="Path to root of data",default="./data")
 
     args = parser.parse_args()
-    
+    root=args.dataroot
     
 
     # create logging directory
@@ -201,12 +209,12 @@ if __name__ == '__main__':
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
-            ssl_test(seed=seed)
-            #active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps,corntest=args.corntest)
-            #active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
-            #random_training(seed=seed,steps=steps,corntest=args.corntest)
-            #active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
-            #disagreement(seed=seed,corntest=args.corntest)
+            #ssl_test(seed=seed)
+            active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps,corntest=args.corntest)
+            active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
+            random_training(seed=seed,steps=steps,corntest=args.corntest)
+            active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
+            disagreement(seed=seed,corntest=args.corntest)
 
 
     """    

@@ -9,6 +9,7 @@ import imagesize
 import random
 from pathlib import Path
 import pdb
+from torchvision import transforms as t
 
 
 def get_unlabelled_data(path):
@@ -16,8 +17,24 @@ def get_unlabelled_data(path):
     print(len(data))
     return data
 
-def get_corntest( training_size=200,validation_size=1000,seed=1,test_group=0):
-    corn='./data/corn/corn'
+def cornssl(root,seed=0,pop=0):
+    all_images=sorted(glob.glob(os.path.join(root+'/corn/corn/german_data/2023_06', '*/*.jpg')))
+    print(len(all_images))
+    #np.random.seed(seed)
+    gen = np.random.default_rng(seed)                                  # new random generator with known seed
+    gen.shuffle(all_images)   
+    groups = np.array_split(all_images, 5)    # 20% of total dataset is testset
+    test_images = groups.pop(pop)  
+    images = np.concatenate(groups)   
+    groups = np.array_split(images, 10) 
+    validation_images = groups.pop(pop)  
+    training_images = np.concatenate(groups) 
+    
+    unlabelled_images = []
+    return training_images, unlabelled_images, test_images,validation_images
+
+def get_corntest(root,seed=1,test_group=0):
+    corn=root+'/corn/corn'
     original_cornset=sorted(glob.glob(os.path.join(corn+'/train_val', '**/*.jpg'),recursive=True))
     print(f'original corn set size: {len(original_cornset)}')
     german_corn=sorted(glob.glob(os.path.join(corn+'/german_data', '**/*.jpg'),recursive=True))
@@ -26,7 +43,7 @@ def get_corntest( training_size=200,validation_size=1000,seed=1,test_group=0):
     gen.shuffle(original_cornset)   
     gen.shuffle(german_corn)
     groups = np.array_split(german_corn, 5)    # 20% of dataset is testset
-    test_images = groups.pop(3)  
+    test_images = groups.pop(test_group)  
     images = np.concatenate(groups)   
     training_images=original_cornset[:5000]
     validation_images = np.concatenate([original_cornset[5000:6000], images[:100]])
@@ -58,9 +75,9 @@ def get_train_val_split(root, val_fraction=0.2, val_group=0):
 
 
 
-def get_datasets_split(root, training_size=200,validation_size=1000,seed=1,test_group=0,more_data=True):
-    extra_data_path='./data/wheat/extra_wheat'
-    all_images = sorted(glob.glob(os.path.join(root, '*/*.jpg')))
+def get_datasets_split(root, training_size=500,validation_size=1000,seed=1,test_group=0,more_data=True):
+    extra_data_path=root+'/wheat/extra_wheat'
+    all_images = sorted(glob.glob(os.path.join(root+'/wheat/train_val_squares', '*/*.jpg')))
     if more_data:
         extra=sorted(glob.glob(os.path.join(extra_data_path, '**/*.jpg'),recursive=True))
         print(len(extra))
@@ -152,7 +169,7 @@ class CropsDataset(torch.utils.data.Dataset):
         self.transforms = transforms
         self.apply_masks = apply_masks
         self.ssl=None #give tranforms right before ssl methods
-
+        self.tensor=t.ToTensor()
         # Build a list with tuples, where each tuple = (filename, mask_id, label)
         self.data = []
         mask_info = {}
@@ -218,7 +235,7 @@ class CropsDataset(torch.utils.data.Dataset):
             img2 = cv2.imread(filename)
             img2=self.ssl(image=img2)['image']
             img2 = img2.transpose((2, 0, 1))
-            img=[img,img2]
+            img=torch.stack([self.tensor(img),self.tensor(img2)])
 
         return img, label
 
@@ -261,8 +278,8 @@ class CropsUnlabelledDataset(torch.utils.data.Dataset):
     def __init__(self, filenames, transforms=None,transforms2=None):
         super().__init__()
         self.transforms = transforms
-
-        self.transforms2=transforms2 #give tranforms right before ssl methods
+        self.tensor=t.ToTensor()
+        self.transforms2=transforms2
 
         # Build a list with tuples, where each tuple = (filename, mask_id, label)
         self.data = []
@@ -286,13 +303,11 @@ class CropsUnlabelledDataset(torch.utils.data.Dataset):
 
 
         img = img.transpose((2, 0, 1))  # channel first
-
-        label = torch.as_tensor(label).long()
-        if self.transforms2:
-            img2 = cv2.imread(filename)
-            img2=self.ssl(image=img2)['image']
-            img2 = img2.transpose((2, 0, 1))
-            img=[img,img2]
+        
+        img2 = cv2.imread(filename)
+        img2=self.transforms2(image=img2)['image']
+        img2 = img2.transpose((2, 0, 1))
+        img=torch.stack([self.tensor(img),self.tensor(img2)])#np stack
 
         return img
 

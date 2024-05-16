@@ -44,7 +44,7 @@ def auxiliary():
     return params
 
 
-def initialize_params(startsize,data,corntest=False):
+def initialize_params(startsize,data,root,corntest=False):
     params = utils.Params()
 
     # Network
@@ -58,10 +58,10 @@ def initialize_params(startsize,data,corntest=False):
     #params.train_images, params.val_images = utils.get_train_val_split('D:/data/wheat/train_val_squares')#, 0.2, 0)
     if data:
         if corntest:
-            params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_corntest()
+            params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_corntest(root)
         else:
-            params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split('./data/wheat/train_val_squares',training_size=startsize)
-
+            params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split(root,training_size=startsize)
+    params.train_images,params.unlabelled_images,params.test_images,params.val_images=utils.cornssl(root)
     params.apply_masks = False
     params.train_transform = utils.train_transforms(crop_size=params.input_size, mean=0.5, std=0.5)
     params.test_transform = utils.test_transforms(crop_size=params.input_size, mean=0.5, std=0.5)
