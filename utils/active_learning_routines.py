@@ -91,8 +91,8 @@ def select_random(len,size=500):
 
 
 def get_vectors(params, dataloader, device,checkpoints_dir_name):
-    state = torch.load(os.path.join(checkpoints_dir_name, 'best.pt'))
-    params.model.load_state_dict(state['net'])
+    #state = torch.load(os.path.join(checkpoints_dir_name, 'best.pt'))
+    #params.model.load_state_dict(state['net'])
     model=params.model.eval()
     model.classifier = torch.nn.Identity()
     progress_bar = tqdm(dataloader)
@@ -209,10 +209,8 @@ def euclid_metric(batch_i,batch_j):
 def metric(batch_i,batch_j):
     unci=batch_i[:,-1:]
     uncj=batch_j[:,-1:]
-    print(batch_i.shape)
     batch_i=batch_i[:,:-1]
     batch_j=batch_j[:,:-1]
-    print(batch_i.shape)
     inorm = F.normalize(batch_i, p=2, dim=1)
     jnorm = F.normalize(batch_j, p=2, dim=1)
     uncertainties =0.5- torch.max(unci, uncj.t())
@@ -275,19 +273,20 @@ def div_unc_trainingset_included(params, unl_dataloader, device,
     
 
     uncertainties=get_uncertainty(params, unl_dataloader, device,checkpoints_dir_name)
-    vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
     uncertainties.extend(get_uncertainty(params, train_dataloader, device,checkpoints_dir_name))
+    vectors=get_vectors(params, unl_dataloader, device,checkpoints_dir_name)
     vectors.extend(get_vectors(params, train_dataloader, device,checkpoints_dir_name))
     uncertainties = torch.stack(uncertainties).unsqueeze(1)
     vectors = torch.stack(vectors)
     list=torch.cat((vectors, uncertainties),1)
     print(list[0].shape)
     indices=[]
-    while len(indices)!=split_size:
 
-        newindices=k_center_greedy(list, split_size-len(indices), metric, device,already_selected=indices)
+    while len(indices)<split_size:
+        print(len(indices))
+        newindices=k_center_greedy(list, split_size, metric, device,already_selected=indices)
 
         indices.extend( [index for index in newindices if index < unl_dataloader.dataset.__len__() and index not in indices])
 
     
-    return indices
+    return indices[:split_size]

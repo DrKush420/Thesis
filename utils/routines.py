@@ -198,6 +198,7 @@ def mean_teacher(teacher, dataloader, optimizer, device, unlabelled_dataloader):
 
     for batch_idx, inputs in enumerate(progress_bar):
         inputs = inputs.to(device)
+        print(inputs.shape)
         optimizer.zero_grad()
         student_outputs = student(inputs[:,0])
         with torch.no_grad():

@@ -61,7 +61,7 @@ def initialize_params(startsize,data,root,corntest=False):
             params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_corntest(root)
         else:
             params.train_images,params.unlabelled_images,params.test_images,params.val_images = utils.get_datasets_split(root,training_size=startsize)
-    params.train_images,params.unlabelled_images,params.test_images,params.val_images=utils.cornssl(root)
+    #params.train_images,params.unlabelled_images,params.test_images,params.val_images=utils.cornssl(root)
     params.apply_masks = False
     params.train_transform = utils.train_transforms(crop_size=params.input_size, mean=0.5, std=0.5)
     params.test_transform = utils.test_transforms(crop_size=params.input_size, mean=0.5, std=0.5)

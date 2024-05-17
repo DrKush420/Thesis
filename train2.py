@@ -118,7 +118,7 @@ def active_learning(function,type,method,seed=None,steps=10,corntest=False):
         if i==steps-1:
             break
         indexes=function(params, unlabelled_dataloader, device,
-                     tb_dir_name, checkpoints_dir_name,split_size=stepsize)
+                     tb_dir_name, checkpoints_dir_name,train_dataloader,split_size=stepsize)
         train_dataloader.dataset.add_data(unlabelled_dataloader.dataset.get_data(indexes))
         unlabelled_dataloader.dataset.remove_data(indexes)
         params = initialize_params(startsize,False,root)
@@ -203,18 +203,18 @@ if __name__ == '__main__':
     seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
     #seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
-    startsize=5000
+    startsize=500
     stepsize=500
     steps=10
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
             #ssl_test(seed=seed)
-            active_learning(utils.select_uncertain,"active learning","uncertainty",seed=seed,steps=steps,corntest=args.corntest)
-            active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
-            random_training(seed=seed,steps=steps,corntest=args.corntest)
-            active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
-            disagreement(seed=seed,corntest=args.corntest)
+            active_learning(utils. div_unc_trainingset_included,"active learning","unc_div_new",seed=seed,steps=steps,corntest=args.corntest)
+            #active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
+            #random_training(seed=seed,steps=steps,corntest=args.corntest)
+            #active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
+            #disagreement(seed=seed,corntest=args.corntest)
 
 
     """    
