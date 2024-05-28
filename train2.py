@@ -74,6 +74,7 @@ def random_training(seed=None,steps=10,corntest=False):
         set_deterministic(seed)
     params=initialize_params(startsize,True,root)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+    print(test_dataloader.dataset.get_fraction())
     for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method="random")
@@ -102,6 +103,7 @@ def active_learning(function,type,method,seed=None,steps=10,corntest=False):
         set_deterministic(seed)
     params=initialize_params(startsize,True,root)
     train_dataloader, val_dataloader,test_dataloader,unlabelled_dataloader = create_dataloaders(params)
+
     for i in range(steps):
         utils.train_classifier(params, train_dataloader, val_dataloader, device,
                            tb_dir_name, checkpoints_dir_name,seed,method=method)
@@ -199,7 +201,7 @@ if __name__ == '__main__':
     #file = open("logs/shitdata.txt", 'a')
     # Start the training
     #active learning uncertainty
-
+    
     seedlist=[0,1,2,3,4,5,6,7,8,9]
     #seedlist=[10,11,12,13,14,15,16,17,18,19]
     #seedlist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
@@ -209,10 +211,11 @@ if __name__ == '__main__':
     if args.seedlist:
         print("Running for all seeds in list-->",seedlist)
         for seed in seedlist:
+            pass
             #ssl_test(seed=seed)
-            active_learning(utils. div_unc_trainingset_included,"active learning","unc_div_new",seed=seed,steps=steps,corntest=args.corntest)
+            #active_learning(utils. div_unc_trainingset_included,"active learning","unc_div_new",seed=seed,steps=steps,corntest=args.corntest)
             #active_learning(utils.select_uncertain_carlo,"active learning","uncertainty_monte_carlo",seed=seed,steps=steps,corntest=args.corntest)
-            #random_training(seed=seed,steps=steps,corntest=args.corntest)
+            random_training(seed=seed,steps=steps,corntest=args.corntest)
             #active_learning(utils.div_unc,"active learning","div_unc_kCent_greedy",seed=seed,steps=steps,corntest=args.corntest)
             #disagreement(seed=seed,corntest=args.corntest)
 

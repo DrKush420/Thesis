@@ -27,7 +27,7 @@ def monte_carlo_uncertainty(inputs,model):
     for i in range(n_samples):
         predictions[i] =(torch.softmax( model(inputs), dim=1))[:,1]
     
-    uncertainty = predictions.std(0)
+    uncertainty = predictions.var(0)
     return  uncertainty
 
 

@@ -87,7 +87,7 @@ def get_datasets_split(root, training_size=500,validation_size=1000,seed=1,test_
     gen = np.random.default_rng(seed)                                  # new random generator with known seed
     gen.shuffle(all_images)   
     groups = np.array_split(all_images, 5)    # 20% of total dataset is testset
-    test_images = groups.pop(3)  
+    test_images = groups.pop(0)  
     images = np.concatenate(groups)   
     training_images = images[:training_size]
     validation_images = images[training_size:training_size+validation_size]
@@ -235,7 +235,7 @@ class CropsDataset(torch.utils.data.Dataset):
             img2 = cv2.imread(filename)
             img2=self.ssl(image=img2)['image']
             img2 = img2.transpose((2, 0, 1))
-            img=torch.stack([self.tensor(img),self.tensor(img2)])
+            img=np.stack([self.tensor(img),self.tensor(img2)])
 
         return img, label
 
@@ -307,8 +307,8 @@ class CropsUnlabelledDataset(torch.utils.data.Dataset):
         img2 = cv2.imread(filename)
         img2=self.transforms2(image=img2)['image']
         img2 = img2.transpose((2, 0, 1))
-        img=torch.stack([self.tensor(img),self.tensor(img2)])#np stack
-
+        img=np.stack([self.tensor(img),self.tensor(img2)])#np stack
+        print(f'Test Acc: {img.shape}')
         return img
 
     def __len__(self):

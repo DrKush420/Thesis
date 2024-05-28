@@ -178,15 +178,15 @@ def test_with_tracking(params, test_dataloader, device,checkpoints_dir_name,netw
     return acc*100,precision,recall,indices
 
 def update_teacher_model(student_model, teacher_model, alpha=0.95):
-    with torch.no_grad():
-        for teacher_param, student_param in zip(teacher_model.parameters(), student_model.parameters()):
-            teacher_param.data = alpha * teacher_param.data + (1 - alpha) * student_param.data
+    for teacher_param, student_param in zip(teacher_model.parameters(), student_model.parameters()):
+        teacher_param.data = alpha * teacher_param.data + (1 - alpha) * student_param.data
 
-def mean_teacher(teacher, dataloader, optimizer, device, unlabelled_dataloader):
+def mean_teacher(teacher, dataloader, optimizer, device, unlabelled_dataloader,student):
     criterion=torch.nn.CrossEntropyLoss()
     consistcrit=torch.nn.MSELoss()
-    student = deepcopy(teacher)
-    teacher.train()
+    criterion.to(device)
+    consistcrit.to(device)
+    teacher.eval()
     teacher.to(device)
     student.train()
     student.to(device)
@@ -195,21 +195,20 @@ def mean_teacher(teacher, dataloader, optimizer, device, unlabelled_dataloader):
     ratio=len(unlabelled_dataloader)/len(dataloader)
     progress_bar = tqdm(unlabelled_dataloader)
     labelindex=0
-
+    dataloader_iter = iter(dataloader)
     for batch_idx, inputs in enumerate(progress_bar):
-        inputs = inputs.to(device)
-        print(inputs.shape)
+        inputs = inputs.to(device) 
         optimizer.zero_grad()
         student_outputs = student(inputs[:,0])
         with torch.no_grad():
             teacher_outputs = teacher(inputs[:,1])
-        loss=0.3*consistcrit(student_outputs,teacher_outputs)
+        loss=10*consistcrit(F.softmax(student_outputs, dim=1), F.softmax(teacher_outputs, dim=1))
         loss.backward()
         optimizer.step()
         train_loss += loss.item()
         if int(batch_idx / ratio) == labelindex: # labelled batch 
             optimizer.zero_grad()
-            inputs,targets=dataloader[labelindex]
+            inputs,targets=next(dataloader_iter)
             inputs,targets = inputs.to(device), targets.to(device)
             labelindex+=1
             student_outputs = student(inputs[:,0])
@@ -217,7 +216,8 @@ def mean_teacher(teacher, dataloader, optimizer, device, unlabelled_dataloader):
                 teacher_outputs = teacher(inputs[:,1])
             
             targets=F.one_hot(targets).float()
-            loss=0.7*criterion(student_outputs,targets)+0.3*consistcrit(student_outputs,teacher_outputs)
+            loss=2*criterion(student_outputs,targets)+10*consistcrit(F.softmax(student_outputs, dim=1), F.softmax(teacher_outputs, dim=1))
+            
             acc = calc_accuracy(student_outputs, targets)
             loss.backward()
             optimizer.step()

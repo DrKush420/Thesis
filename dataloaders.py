@@ -23,7 +23,7 @@ def create_unlabelled_dataloader(params,data):
     )
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        batch_size=params.batch_size,
+        batch_size=params.batch_size/2,
         pin_memory=True,
         num_workers=params.num_workers,
         worker_init_fn=seed_worker,
