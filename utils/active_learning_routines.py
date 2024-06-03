@@ -78,7 +78,6 @@ def select_uncertain_carlo(params, unl_dataloader, device,
     # Sort samples by uncertainty
     indices_uncertainties = list(zip(all_indices, uncertainties))
     indices_uncertainties.sort(key=lambda x: x[1],reverse=True)
-    
     # Split the dataset
     uncertain_indices = [idx for idx, _ in indices_uncertainties[:split_size]]
 
@@ -234,9 +233,6 @@ def div_unc(params, unl_dataloader, device,
     
     return indices
 
-def disagreement():
-    """could implement a treshold or treshold + must be at the other side of the 0.5 mark"""
-    return None
 
 
 def select_disagreement(params,params_aux, unlabelled_dataloader, device,
